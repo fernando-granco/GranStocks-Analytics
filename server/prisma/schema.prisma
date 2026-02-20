@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String               @id @default(uuid())
+  selections UserAssetSelection[]
+  llmConfigs UserLLMConfig[]
+  narratives AiNarrative[]
+}
+
+model Asset {
+  symbol      String   @id
+  type        String   @default("STOCK") // Enum(STOCK) represented as string in SQLite
+  displayName String
+  exchange    String?
+  currency    String   @default("USD")
+  isActive    Boolean  @default(true)
+}
+
+model UserAssetSelection {
+  id        String   @id @default(uuid())
+  userId    String
+  symbol    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model CachedResponse {
+  cacheKey    String   @id
+  payloadJson String
+  ts          DateTime @default(now())
+  ttlSeconds  Int
+  isStale     Boolean  @default(false)
+  source      String   // ENUM(FINNHUB)
+}
+
+model IndicatorSnapshot {
+  id             String   @id @default(uuid())
+  symbol         String
+  date           String   // YYYY-MM-DD
+  indicatorsJson String
+  createdAt      DateTime @default(now())
+
+  @@unique([symbol, date])
+}
+
+model PredictionSnapshot {
+  id                 String   @id @default(uuid())
+  symbol             String
+  date               String   // YYYY-MM-DD
+  horizonDays        Int      // 1, 5, 20
+  predictedReturnPct Float
+  predictedPrice     Float
+  confidence         Float    // 0-1
+  featuresJson       String
+  explanationText    String
+  createdAt          DateTime @default(now())
+
+  @@unique([symbol, date, horizonDays])
+}
+
+model UserLLMConfig {
+  id               String   @id @default(uuid())
+  userId           String
+  name             String   // e.g. "ChatGPT"
+  provider         String   // OPENAI, GEMINI, DEEPSEEK, OPENAI_COMPAT
+  model            String
+  encryptedApiKey  String
+  keyLast4         String
+  baseUrl          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id])
+  narratives       AiNarrative[]
+}
+
+model AiNarrative {
+  id            String   @id @default(uuid())
+  userId        String
+  symbol        String?  // null = daily summary
+  date          String
+  llmConfigId   String
+  contentText   String
+  providerUsed  String
+  modelUsed     String
+  createdAt     DateTime @default(now())
+
+  user          User           @relation(fields: [userId], references: [id])
+  llmConfig     UserLLMConfig  @relation(fields: [llmConfigId], references: [id])
+}

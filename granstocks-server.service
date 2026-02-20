@@ -1,0 +1,16 @@
+[Unit]
+Description=Polaris Node.js Fastify App
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Set Environment Variables here if not loading from dotenv
+# Environment=NODE_ENV=production
+WorkingDirectory=/var/www/polaris/server
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

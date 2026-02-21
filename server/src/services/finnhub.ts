@@ -126,9 +126,11 @@ export class FinnhubService {
 
             const data = {
                 s: 'ok',
+                o: results.map(r => r.open),
                 c: results.map(r => r.close),
                 h: results.map(r => r.high),
                 l: results.map(r => r.low),
+                v: results.map(r => r.volume),
                 t: results.map(r => Math.floor(r.date.getTime() / 1000))
             };
 

@@ -37,10 +37,10 @@ export default function Login() {
 
     return (
         <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-4">
-            <div className="mb-8 flex items-center gap-2">
+            <Link to="/" className="mb-8 flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <TrendingUp className="text-indigo-500 w-8 h-8" />
                 <h1 className="text-2xl font-bold text-white tracking-tight">GranStocks <span className="font-normal text-neutral-500">Analytics</span></h1>
-            </div>
+            </Link>
 
             <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-8">
                 <h2 className="text-xl font-semibold text-white mb-6 text-center">Sign in to your account</h2>

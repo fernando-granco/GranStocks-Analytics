@@ -50,6 +50,20 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 return reply.status(401).send({ error: 'Invalid email or password' });
             }
 
+            if (user.status === 'BANNED') {
+                return reply.status(403).send({ error: 'Account suspended. Contact support.' });
+            }
+
+            if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.emailVerifiedAt) {
+                return reply.status(403).send({ error: 'Please verify your email address to continue.' });
+            }
+
+            // Track login
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { lastLoginAt: new Date() }
+            });
+
             const token = fastify.jwt.sign({ id: user.id, email: user.email, role: user.role });
             reply.setCookie('token', token, {
                 path: '/',
@@ -79,6 +93,37 @@ export default async function authRoutes(fastify: FastifyInstance) {
         if (!user) {
             return reply.status(404).send({ error: 'User not found' });
         }
-        return reply.send({ id: user.id, email: user.email, role: user.role });
+        if (user.status === 'BANNED') {
+            reply.clearCookie('token', { path: '/' });
+            return reply.status(403).send({ error: 'Account suspended.' });
+        }
+        return reply.send({ id: user.id, email: user.email, role: user.role, status: user.status, mustChangePassword: user.mustChangePassword });
+    });
+
+    // --- Prod Skeleton Endpoints ---
+
+    fastify.post('/request-password-reset', async (request: FastifyRequest, reply: FastifyReply) => {
+        if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true') {
+            return reply.status(501).send({ error: 'Password reset is disabled in this environment.' });
+        }
+        const schema = z.object({ email: z.string().email() });
+        const { email } = schema.parse(request.body);
+
+        // TODO: Generate PasswordResetToken, Send Email with Service
+        console.log(`[Prod Skeleton] Password Reset requested for ${email}`);
+        return reply.send({ message: 'If that email is registered, a reset link will be sent.' });
+    });
+
+    fastify.post('/reset-password', async (request: FastifyRequest, reply: FastifyReply) => {
+        if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true') {
+            return reply.status(501).send({ error: 'Password reset is disabled.' });
+        }
+        // TODO: Verify token, Hash new password, clear mustChangePassword
+        return reply.status(501).send({ error: 'Not implemented' });
+    });
+
+    fastify.post('/verify-email', async (request: FastifyRequest, reply: FastifyReply) => {
+        // TODO: Verify email token, update user.emailVerifiedAt
+        return reply.status(501).send({ error: 'Not implemented' });
     });
 }

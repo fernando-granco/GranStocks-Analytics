@@ -1,11 +1,13 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { TrendingUp, Settings, LogOut, BarChart3 } from 'lucide-react';
+import { TrendingUp, Settings, LogOut, BarChart3, FlaskConical, Globe } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { usePreferences } from '../context/PreferencesContext';
 
 export default function Layout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, logout } = useAuth();
+    const { mode, setMode } = usePreferences();
 
     return (
         <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-indigo-500/30">
@@ -17,10 +19,33 @@ export default function Layout() {
                     </div>
                     <div className="flex items-center gap-6">
                         {user?.role === 'ADMIN' && (
-                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded">
+                            <button
+                                onClick={() => navigate('/app/admin/users')}
+                                className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded hover:bg-indigo-500/20 transition-colors"
+                            >
                                 Admin
-                            </span>
+                            </button>
                         )}
+
+                        <button
+                            onClick={() => setMode(mode === 'BASIC' ? 'ADVANCED' : 'BASIC')}
+                            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full transition-colors ${mode === 'ADVANCED' ? 'bg-amber-500 text-neutral-900 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-neutral-800 text-neutral-400 border border-neutral-700 hover:bg-neutral-700'}`}
+                            title={`Current Mode: ${mode}`}
+                        >
+                            <FlaskConical size={14} className={mode === 'ADVANCED' ? 'animate-pulse' : ''} />
+                            {mode === 'ADVANCED' ? 'Pro' : 'Basic'}
+                        </button>
+
+                        {mode === 'ADVANCED' && (
+                            <button
+                                onClick={() => navigate('/app/universes')}
+                                className={`transition-colors ${location.pathname === '/app/universes' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
+                                title="Universe Builder"
+                            >
+                                <Globe size={20} />
+                            </button>
+                        )}
+
                         <button
                             onClick={() => navigate('/app/screener')}
                             className={`transition-colors ${location.pathname === '/app/screener' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
@@ -34,7 +59,10 @@ export default function Layout() {
                             <Settings size={20} />
                         </button>
                         <button
-                            onClick={logout}
+                            onClick={async () => {
+                                await logout();
+                                navigate('/');
+                            }}
                             className="text-neutral-400 hover:text-rose-400 transition-colors flex items-center gap-1.5 text-sm font-medium"
                         >
                             <LogOut size={16} /> <span className="hidden sm:inline">Logout</span>

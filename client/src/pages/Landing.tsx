@@ -54,7 +54,7 @@ export default function Landing() {
                             Start Analyzing <ArrowRight className="w-5 h-5" />
                         </button>
                         <button
-                            onClick={() => navigate('/login')}
+                            onClick={() => navigate('/demo')}
                             className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all"
                         >
                             View Live Demo
@@ -70,7 +70,7 @@ export default function Landing() {
                             <FeatureCard
                                 icon={<Database className="w-8 h-8 text-blue-400" />}
                                 title="Multi-Source Data Engine"
-                                description="Automated failover routing combining AlphaVantage, Finnhub, Yahoo Finance, and strict Binance WebSockets for ultimate data reliability."
+                                description="Automated failover routing combining multiple premium data vendors via unified WebSockets and REST APIs for ultimate data reliability."
                             />
 
                             <FeatureCard

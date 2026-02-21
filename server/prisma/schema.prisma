@@ -8,25 +8,34 @@ datasource db {
 }
 
 model User {
-  id           String          @id @default(uuid())
-  email        String          @unique
-  passwordHash String
-  role         String          @default("USER") // ENUM(USER, ADMIN)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  passwordHash       String
+  role               String    @default("USER") // ENUM(USER, ADMIN)
+  emailVerifiedAt    DateTime?
+  lastLoginAt        DateTime?
+  status             String    @default("ACTIVE") // ENUM(ACTIVE, BANNED)
+  mustChangePassword Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   trackedAssets TrackedAsset[]
   llmConfigs    UserLLMConfig[]
   narratives    AiNarrative[]
+  preferences   UserPreferences?
+  universes     Universe[]
+  resetTokens   PasswordResetToken[]
+  adminAudits   AdminAuditLog[]      @relation("actor")
+  targetAudits  AdminAuditLog[]      @relation("target")
 }
 
 model Asset {
-  symbol      String   @id
-  type        String   @default("STOCK") // Enum(STOCK) represented as string in SQLite
+  symbol      String  @id
+  type        String  @default("STOCK") // Enum(STOCK) represented as string in SQLite
   displayName String
   exchange    String?
-  currency    String   @default("USD")
-  isActive    Boolean  @default(true)
+  currency    String  @default("USD")
+  isActive    Boolean @default(true)
 }
 
 model TrackedAsset {
@@ -35,7 +44,7 @@ model TrackedAsset {
   symbol    String
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@unique([userId, symbol])
 }
@@ -46,13 +55,13 @@ model CachedResponse {
   ts          DateTime @default(now())
   ttlSeconds  Int
   isStale     Boolean  @default(false)
-  source      String   // ENUM(FINNHUB)
+  source      String // ENUM(FINNHUB)
 }
 
 model IndicatorSnapshot {
   id             String   @id @default(uuid())
   symbol         String
-  date           String   // YYYY-MM-DD
+  date           String // YYYY-MM-DD
   indicatorsJson String
   createdAt      DateTime @default(now())
 
@@ -62,11 +71,11 @@ model IndicatorSnapshot {
 model PredictionSnapshot {
   id                 String   @id @default(uuid())
   symbol             String
-  date               String   // YYYY-MM-DD
-  horizonDays        Int      // 1, 5, 20
+  date               String // YYYY-MM-DD
+  horizonDays        Int // 1, 5, 20
   predictedReturnPct Float
   predictedPrice     Float
-  confidence         Float    // 0-1
+  confidence         Float // 0-1
   featuresJson       String
   explanationText    String
   createdAt          DateTime @default(now())
@@ -75,42 +84,42 @@ model PredictionSnapshot {
 }
 
 model UserLLMConfig {
-  id               String   @id @default(uuid())
-  userId           String
-  name             String   // e.g. "ChatGPT"
-  provider         String   // OPENAI, GOOGLE, ANTHROPIC, XAI, OPENROUTER, DEEPSEEK, PERPLEXITY, OPENAI_COMPAT
-  model            String
-  encryptedApiKey  String
-  keyLast4         String
-  baseUrl          String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(uuid())
+  userId          String
+  name            String // e.g. "ChatGPT"
+  provider        String // OPENAI, GOOGLE, ANTHROPIC, XAI, OPENROUTER, DEEPSEEK, PERPLEXITY, OPENAI_COMPAT
+  model           String
+  encryptedApiKey String
+  keyLast4        String
+  baseUrl         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user             User     @relation(fields: [userId], references: [id])
-  narratives       AiNarrative[]
+  user       User          @relation(fields: [userId], references: [id])
+  narratives AiNarrative[]
 }
 
 model AiNarrative {
-  id            String   @id @default(uuid())
-  userId        String
-  assetType     String   @default("STOCK") // STOCK or CRYPTO
-  symbol        String?  // null = daily summary
-  dateHour      String
-  role          String   @default("CONSENSUS")
-  llmConfigId   String
-  contentText   String
-  providerUsed  String
-  modelUsed     String
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String
+  assetType    String   @default("STOCK") // STOCK or CRYPTO
+  symbol       String? // null = daily summary
+  dateHour     String
+  role         String   @default("CONSENSUS")
+  llmConfigId  String
+  contentText  String
+  providerUsed String
+  modelUsed    String
+  createdAt    DateTime @default(now())
 
-  user          User           @relation(fields: [userId], references: [id])
-  llmConfig     UserLLMConfig  @relation(fields: [llmConfigId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+  llmConfig UserLLMConfig @relation(fields: [llmConfigId], references: [id])
 }
 
 model ScreenerSnapshot {
   id            String   @id @default(uuid())
-  dateHour      String   // YYYY-MM-DDTHH:00
-  universeType  String   // STOCK | CRYPTO
+  dateHour      String // YYYY-MM-DDTHH:00
+  universeType  String // STOCK | CRYPTO
   universeName  String
   symbol        String
   assetType     String   @default("STOCK")
@@ -127,9 +136,9 @@ model ScreenerSnapshot {
 
 model JobState {
   id           String   @id @default(uuid())
-  universeType String   // STOCK | CRYPTO
+  universeType String // STOCK | CRYPTO
   universeName String
-  status       String   // PENDING, RUNNING, COMPLETED, FAILED
+  status       String // PENDING, RUNNING, COMPLETED, FAILED
   cursorIndex  Int      @default(0)
   total        Int
   lastRunAt    DateTime @default(now())
@@ -140,13 +149,96 @@ model JobState {
 }
 
 model AnalysisSnapshot {
-  id            String   @id @default(uuid())
-  dateHour      String   // YYYY-MM-DDTHH:00
-  assetType     String   // STOCK | CRYPTO
-  symbol        String
-  role          String   // TECHNICAL, FUNDAMENTAL, SENTIMENT, BULL, BEAR, RISK, CONSENSUS
-  payloadJson   String
-  createdAt     DateTime @default(now())
+  id          String   @id @default(uuid())
+  dateHour    String // YYYY-MM-DDTHH:00
+  assetType   String // STOCK | CRYPTO
+  symbol      String
+  role        String // TECHNICAL, FUNDAMENTAL, SENTIMENT, BULL, BEAR, RISK, CONSENSUS
+  payloadJson String
+  createdAt   DateTime @default(now())
 
   @@unique([dateHour, assetType, symbol, role])
+}
+
+model UserPreferences {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  mode      String   @default("BASIC") // ENUM(BASIC, ADVANCED)
+  timezone  String   @default("America/Toronto")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AdminAuditLog {
+  id           String   @id @default(uuid())
+  actorUserId  String
+  targetUserId String
+  action       String
+  metadataJson String
+  createdAt    DateTime @default(now())
+
+  actorUser  User @relation("actor", fields: [actorUserId], references: [id])
+  targetUser User @relation("target", fields: [targetUserId], references: [id])
+}
+
+model Universe {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  universeType   String // STOCK | CRYPTO
+  definitionJson String
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model DemoSnapshotMeta {
+  id                 String   @id @default(uuid())
+  snapshotAnchorDate String // YYYY-MM-DDTHH:00
+  nextRefreshAfter   String // YYYY-MM-DDTHH:00
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model DemoAssetSnapshot {
+  id                 String   @id @default(uuid())
+  snapshotAnchorDate String
+  assetType          String
+  symbol             String
+  quoteJson          String
+  candlesJson        String
+  indicatorsJson     String
+  riskFlagsJson      String
+  firmViewJson       String
+  createdAt          DateTime @default(now())
+
+  @@unique([snapshotAnchorDate, assetType, symbol])
+}
+
+model DemoScreenerSnapshot {
+  id                 String   @id @default(uuid())
+  snapshotAnchorDate String
+  universeType       String
+  universeName       String
+  symbol             String
+  assetType          String   @default("STOCK")
+  score              Float
+  metricsJson        String
+  price              Float    @default(0)
+  riskFlagsJson      String   @default("{}")
+  createdAt          DateTime @default(now())
+
+  @@unique([snapshotAnchorDate, universeType, universeName, symbol])
 }

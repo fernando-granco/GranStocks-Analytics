@@ -4,6 +4,7 @@ import { MarketData } from './services/market-data';
 import { LLMService } from './services/llm';
 import { DailyJobService } from './services/scheduler';
 import { ScreenerService } from './services/screener';
+import { PredictionService, IndicatorService, FirmViewService } from './services/analysis';
 import { encryptText } from './utils/crypto';
 import z from 'zod';
 
@@ -141,21 +142,64 @@ export async function registerRoutes(server: FastifyInstance) {
         return configs;
     });
 
+    server.delete('/api/settings/llm/:id', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const { id } = req.params as { id: string };
+        const authUser = req.user as { id: string };
+
+        const config = await prisma.userLLMConfig.findUnique({ where: { id } });
+        if (!config || config.userId !== authUser.id) {
+            return reply.status(404).send({ error: 'Config not found' });
+        }
+
+        await prisma.userLLMConfig.delete({ where: { id } });
+        return { success: true };
+    });
+
+    // --- User Preferences ---
+    server.get('/api/settings/preferences', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const authUser = req.user as { id: string };
+        let prefs = await prisma.userPreferences.findUnique({ where: { userId: authUser.id } });
+
+        if (!prefs) {
+            prefs = await prisma.userPreferences.create({
+                data: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto' }
+            });
+        }
+        return { mode: prefs.mode, timezone: prefs.timezone };
+    });
+
+    server.post('/api/settings/preferences', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const schema = z.object({
+            mode: z.enum(['BASIC', 'ADVANCED']).optional(),
+            timezone: z.string().optional()
+        });
+        const updates = schema.parse(req.body);
+        const authUser = req.user as { id: string };
+
+        const prefs = await prisma.userPreferences.upsert({
+            where: { userId: authUser.id },
+            update: updates,
+            create: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', ...updates }
+        });
+
+        return { mode: prefs.mode, timezone: prefs.timezone };
+    });
+
     // --- Deterministic Outputs & Asset Summary API ---
     server.get('/api/asset/summary', { preValidation: [server.authenticate] }, async (req, reply) => {
         const schema = z.object({
             symbol: z.string().toUpperCase(),
             assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK'),
-            dateHour: z.string().optional() // YYYY-MM-DDTHH:00
+            dateHour: z.string().optional(), // YYYY-MM-DDTHH:00
+            range: z.string().optional().default('6m')
         });
-        const { symbol, assetType, dateHour } = schema.parse(req.query);
+        const { symbol, assetType, dateHour, range } = schema.parse(req.query);
 
         const dh = dateHour || new Date().toISOString().substring(0, 13) + ':00';
 
         // 1. Get raw quote & candles
         const quote = await MarketData.getQuote(symbol, assetType);
-        // default 6m range for daily candles
-        const candles = await MarketData.getCandles(symbol, assetType, '6m');
+        const candles = await MarketData.getCandles(symbol, assetType, range);
 
         // 2. Fetch specific Indicator & Prediction snapshots
         // Try exact date match first, fallback to latest
@@ -172,7 +216,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
         // 3. Fetch Firm View deterministic roles (AnalysisSnapshot)
         const firmView = await prisma.analysisSnapshot.findMany({
-            where: { symbol, assetType } // Simplified fetch to just get latest available context
+            where: { symbol, assetType, ...(ind ? { dateHour: ind.date } : {}) }
         });
 
         // 4. Transform firmView into a lookup dictionary by role
@@ -185,8 +229,23 @@ export async function registerRoutes(server: FastifyInstance) {
             quote,
             candles,
             indicators: ind ? JSON.parse(ind.indicatorsJson) : null,
+            evidencePack: ind ? PredictionService.generateEvidencePack(JSON.parse(ind.indicatorsJson)) : null,
             firmView: roles
         };
+    });
+
+    // --- On-demand analysis for untracked assets ---
+    // If no stored snapshot, compute on-the-fly from live candles
+    server.get('/api/asset/realtime-analysis', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
+        const { symbol, assetType } = schema.parse(req.query);
+        const candles = await MarketData.getCandles(symbol, assetType, '6m');
+        if (!candles || candles.s !== 'ok') return reply.status(503).send({ error: 'Could not fetch candle data' });
+        const indicators = IndicatorService.computeAll(candles);
+        if (!indicators) return reply.status(503).send({ error: 'Insufficient data for analysis' });
+        const firmViews = FirmViewService.generateFirmViews(indicators);
+        const evidencePack = PredictionService.generateEvidencePack(indicators);
+        return { indicators, firmView: Object.fromEntries(Object.entries(firmViews).map(([k, v]) => [k, JSON.stringify(v)])), evidencePack };
     });
 
     server.get('/api/overview/today', { preValidation: [server.authenticate] }, async (req, reply) => {
@@ -254,6 +313,7 @@ export async function registerRoutes(server: FastifyInstance) {
         const authUser = req.user as { id: string };
 
         const results: any[] = [];
+        const errors: string[] = [];
 
         // For each selected model, generate narratives side-by-side
         for (const configId of llmConfigIds) {
@@ -269,43 +329,70 @@ export async function registerRoutes(server: FastifyInstance) {
                     }
                 }
 
-                // Fetch deterministic context from DB (Prediction + Firm View Roles)
+                // --- Fetch deterministic context: try today first, fallback to latest ---
                 const predContext = await prisma.predictionSnapshot.findFirst({
-                    where: { symbol, date, horizonDays: 20 }
+                    where: { symbol, horizonDays: 20 },
+                    orderBy: { date: 'desc' }
+                });
+
+                const indContext = await prisma.indicatorSnapshot.findFirst({
+                    where: { symbol },
+                    orderBy: { date: 'desc' }
                 });
 
                 const firmView = await prisma.analysisSnapshot.findMany({
-                    where: { symbol }
+                    where: { symbol },
+                    orderBy: { dateHour: 'desc' },
+                    take: 10
                 });
 
-                if (!predContext && firmView.length === 0) continue; // No base context to generate from
+                if (!predContext && firmView.length === 0 && !indContext) {
+                    errors.push(`No indicator data found for ${symbol}. Run the Daily Job first.`);
+                    continue;
+                }
+
+                let evidencePack = 'No raw indicators available.';
+                if (indContext) {
+                    evidencePack = PredictionService.generateEvidencePack(JSON.parse(indContext.indicatorsJson));
+                }
 
                 const assembledContext = {
                     baselinePrediction: predContext?.explanationText || 'No ML baseline',
+                    evidencePack,
                     firmViewRoles: firmView.map(f => ({ role: f.role, summary: JSON.parse(f.payloadJson) }))
                 };
 
-                const narrativeText = await LLMService.generateNarrative(configId, symbol, date, JSON.stringify(assembledContext, null, 2));
+                try {
+                    const narrativeText = await LLMService.generateNarrative(configId, symbol, date, JSON.stringify(assembledContext, null, 2));
 
-                const config = await prisma.userLLMConfig.findUnique({ where: { id: configId } });
+                    const config = await prisma.userLLMConfig.findUnique({ where: { id: configId } });
 
-                const narrative = await prisma.aiNarrative.create({
-                    data: {
-                        userId: authUser.id,
-                        symbol,
-                        dateHour: date,
-                        llmConfigId: configId,
-                        contentText: narrativeText,
-                        providerUsed: config!.provider,
-                        modelUsed: config!.model
-                    }
-                });
+                    const narrative = await prisma.aiNarrative.create({
+                        data: {
+                            userId: authUser.id,
+                            symbol,
+                            dateHour: date,
+                            llmConfigId: configId,
+                            contentText: narrativeText,
+                            providerUsed: config!.provider,
+                            modelUsed: config!.model
+                        }
+                    });
 
-                results.push(narrative);
+                    results.push(narrative);
+                } catch (llmErr: any) {
+                    const msg = llmErr?.message || 'Unknown LLM error';
+                    errors.push(`Provider error for ${symbol}: ${msg}`);
+                    console.error(`[AI] LLM error for ${symbol} config ${configId}:`, msg);
+                }
             }
         }
 
-        return results;
+        if (results.length === 0 && errors.length > 0) {
+            return reply.status(422).send({ error: errors.join('\n') });
+        }
+
+        return { results, errors };
     });
 
     // --- Admin ---

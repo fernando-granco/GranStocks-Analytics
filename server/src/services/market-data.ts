@@ -47,7 +47,32 @@ export class MarketData {
             // STOCK
             const isIntraday = ['1d', '1w'].includes(rangeStr);
             try {
-                return await AlphaVantageProvider.getCandles(symbol, isIntraday);
+                const fullData = await AlphaVantageProvider.getCandles(symbol, isIntraday);
+                if (rangeStr === 'all') return fullData;
+
+                const toLimit = Math.floor(Date.now() / 1000);
+                let fromLimit = 0;
+                if (rangeStr === '1m') fromLimit = toLimit - (30 * 24 * 60 * 60);
+                else if (rangeStr === '3m') fromLimit = toLimit - (90 * 24 * 60 * 60);
+                else if (rangeStr === '6m') fromLimit = toLimit - (180 * 24 * 60 * 60);
+                else if (rangeStr === '1y') fromLimit = toLimit - (365 * 24 * 60 * 60);
+                else if (rangeStr === '2y') fromLimit = toLimit - (730 * 24 * 60 * 60);
+                else if (rangeStr === '5y') fromLimit = toLimit - (1825 * 24 * 60 * 60);
+                else fromLimit = toLimit - (180 * 24 * 60 * 60); // Default 6m
+
+                // Slice the data arrays
+                const slicedData = { ...fullData, t: [], o: [], h: [], l: [], c: [], v: [] };
+                for (let i = 0; i < fullData.t.length; i++) {
+                    if (fullData.t[i] >= fromLimit) {
+                        slicedData.t.push(fullData.t[i]);
+                        slicedData.o.push(fullData.o[i]);
+                        slicedData.h.push(fullData.h[i]);
+                        slicedData.l.push(fullData.l[i]);
+                        slicedData.c.push(fullData.c[i]);
+                        slicedData.v.push(fullData.v[i]);
+                    }
+                }
+                return slicedData;
             } catch (errAV) {
                 console.warn(`[MarketData] AV failed for ${symbol} candles, falling back to Finnhub/YF...`);
                 // Calculate from/to for Finnhub/YF based on rangeStr
@@ -56,7 +81,11 @@ export class MarketData {
                 let resolution = 'D';
 
                 if (rangeStr === '1m') { from = to - (30 * 24 * 60 * 60); }
+                else if (rangeStr === '3m') { from = to - (90 * 24 * 60 * 60); }
                 else if (rangeStr === '1y') { from = to - (365 * 24 * 60 * 60); }
+                else if (rangeStr === '2y') { from = to - (730 * 24 * 60 * 60); }
+                else if (rangeStr === '5y') { from = to - (1825 * 24 * 60 * 60); }
+                else if (rangeStr === 'all') { from = to - (3650 * 24 * 60 * 60); } // 10 years max fallback
                 else if (isIntraday) {
                     resolution = '60';
                     from = to - (7 * 24 * 60 * 60); // 1w exactly

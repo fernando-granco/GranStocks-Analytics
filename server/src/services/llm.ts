@@ -26,7 +26,10 @@ export class OpenAIProvider implements LLMProvider {
             })
         });
 
-        if (!res.ok) throw new Error(`OpenAI Error: ${res.statusText}`);
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => res.statusText);
+            throw new Error(`OpenAI API Error (${res.status}): ${errBody}`);
+        }
         const data = await res.json();
         return data.choices[0].message.content + "\n\n(AI-generated commentary - simulation only)";
     }
@@ -50,7 +53,10 @@ export class GeminiProvider implements LLMProvider {
             })
         });
 
-        if (!res.ok) throw new Error(`Gemini Error: ${res.statusText}`);
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => res.statusText);
+            throw new Error(`Gemini API Error (${res.status}): ${errBody}`);
+        }
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated";
         return text + "\n\n(AI-generated commentary - simulation only)";
@@ -79,7 +85,10 @@ export class AnthropicProvider implements LLMProvider {
             })
         });
 
-        if (!res.ok) throw new Error(`Anthropic Error: ${res.statusText}`);
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => res.statusText);
+            throw new Error(`Anthropic API Error (${res.status}): ${errBody}`);
+        }
         const data = await res.json();
         return data.content[0].text + "\n\n(AI-generated commentary - simulation only)";
     }
@@ -106,8 +115,9 @@ export class LLMService {
         switch (config.provider) {
             case 'OPENAI':
                 return new OpenAIProvider(apiKey, config.model);
-            case 'OPENAI_COMPAT':
             case 'DEEPSEEK':
+                return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? 'https://api.deepseek.com/v1');
+            case 'OPENAI_COMPAT':
                 return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? undefined);
             case 'GROQ':
                 return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? 'https://api.groq.com/openai/v1');

@@ -1,0 +1,82 @@
+[
+  {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Technology",
+    "industry": "Consumer Electronics",
+    "country": "United States"
+  },
+  {
+    "symbol": "MSFT",
+    "name": "Microsoft Corporation",
+    "exchange": "NASDAQ",
+    "sector": "Technology",
+    "industry": "Software—Infrastructure",
+    "country": "United States"
+  },
+  {
+    "symbol": "JPM",
+    "name": "JPMorgan Chase & Co.",
+    "exchange": "NYSE",
+    "sector": "Financial Services",
+    "industry": "Banks—Diversified",
+    "country": "United States"
+  },
+  {
+    "symbol": "V",
+    "name": "Visa Inc.",
+    "exchange": "NYSE",
+    "sector": "Financial Services",
+    "industry": "Credit Services",
+    "country": "United States"
+  },
+  {
+    "symbol": "JNJ",
+    "name": "Johnson & Johnson",
+    "exchange": "NYSE",
+    "sector": "Healthcare",
+    "industry": "Drug Manufacturers—General",
+    "country": "United States"
+  },
+  {
+    "symbol": "TSM",
+    "name": "Taiwan Semiconductor",
+    "exchange": "NYSE",
+    "sector": "Technology",
+    "industry": "Semiconductors",
+    "country": "Taiwan"
+  },
+  {
+    "symbol": "NVO",
+    "name": "Novo Nordisk",
+    "exchange": "NYSE",
+    "sector": "Healthcare",
+    "industry": "Drug Manufacturers—General",
+    "country": "Denmark"
+  },
+  {
+    "symbol": "SAP",
+    "name": "SAP SE",
+    "exchange": "NYSE",
+    "sector": "Technology",
+    "industry": "Software—Application",
+    "country": "Germany"
+  },
+  {
+    "symbol": "RY",
+    "name": "Royal Bank of Canada",
+    "exchange": "NYSE",
+    "sector": "Financial Services",
+    "industry": "Banks—Diversified",
+    "country": "Canada"
+  },
+  {
+    "symbol": "BHP",
+    "name": "BHP Group",
+    "exchange": "NYSE",
+    "sector": "Basic Materials",
+    "industry": "Other Industrial Metals",
+    "country": "Australia"
+  }
+]

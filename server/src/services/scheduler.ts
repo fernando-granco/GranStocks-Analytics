@@ -1,13 +1,15 @@
 import cron from 'node-cron';
 import { prisma } from './cache';
 import { MarketData } from './market-data';
-import { IndicatorService, PredictionService } from './analysis';
+import { IndicatorService, PredictionService, FirmViewService } from './analysis';
+import { DemoService } from './demo';
+import { ScreenerService } from './screener';
 
 export class DailyJobService {
     static async runDailyJob(overrideDateStr?: string) {
-        // America/Vancouver timezone
+        // America/Toronto timezone
         const dateStr = overrideDateStr || new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'America/Vancouver',
+            timeZone: 'America/Toronto',
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'
@@ -73,6 +75,22 @@ export class DailyJobService {
                     });
                 }
 
+                // Compute Firm Views (AnalysisSnapshot)
+                const firmViews = FirmViewService.generateFirmViews(indicators);
+                for (const [role, payload] of Object.entries(firmViews)) {
+                    await prisma.analysisSnapshot.upsert({
+                        where: { dateHour_assetType_symbol_role: { symbol: asset.symbol, role, dateHour: dateStr, assetType: asset.type } },
+                        update: { payloadJson: JSON.stringify(payload) },
+                        create: {
+                            symbol: asset.symbol,
+                            assetType: asset.type,
+                            role,
+                            dateHour: dateStr,
+                            payloadJson: JSON.stringify(payload)
+                        }
+                    });
+                }
+
                 console.log(`[Job] Successfully processed ${asset.symbol} for ${dateStr}`);
 
                 // Sleep brief moment to allow tokens to refill cleanly if queue is very large
@@ -85,12 +103,27 @@ export class DailyJobService {
     }
 
     static startCron() {
-        // Runs at 18:00 America/Vancouver Time daily
+        // Runs at 18:00 America/Toronto Time daily
         cron.schedule('0 18 * * *', () => {
             this.runDailyJob().catch(console.error);
         }, {
-            timezone: 'America/Vancouver'
+            timezone: 'America/Toronto'
         });
-        console.log('Daily Job Cron Scheduled for 18:00 America/Vancouver');
+        console.log('Daily Job Cron Scheduled for 18:00 America/Toronto');
+
+        // Runs at the 15th minute of every hour (e.g. 1:15, 2:15)
+        cron.schedule('15 * * * *', () => {
+            console.log('Running Hourly Screener Job...');
+            ScreenerService.runScreenerJob('SP500', new Date().toISOString().substring(0, 13) + ':00').catch(console.error);
+            ScreenerService.runScreenerJob('CRYPTO', new Date().toISOString().substring(0, 13) + ':00').catch(console.error);
+        });
+        console.log('Hourly Screener Job Scheduled');
+
+        // Runs on the 1st of every month at midnight
+        cron.schedule('0 0 1 * *', () => {
+            console.log('Running Monthly Demo Snapshot Rebuild...');
+            DemoService.rebuildDemoSnapshots().catch(console.error);
+        });
+        console.log('Monthly Demo Snapshot Rebuild Scheduled');
     }
 }

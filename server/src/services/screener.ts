@@ -85,6 +85,8 @@ export class ScreenerService {
         let maxPrice = highs[0];
         let maxDrawdown = 0;
         let diffSums = 0;
+        let downsideDiffSums = 0;
+        let downsideCount = 0;
 
         for (let i = 0; i < closes.length; i++) {
             if (highs[i] > maxPrice) maxPrice = highs[i];
@@ -94,10 +96,21 @@ export class ScreenerService {
             if (i > 0) {
                 const ret = (closes[i] - closes[i - 1]) / closes[i - 1];
                 diffSums += ret * ret;
+                if (ret < 0) {
+                    downsideDiffSums += ret * ret;
+                    downsideCount++;
+                }
             }
         }
 
         const volatility = Math.sqrt(diffSums / (closes.length - 1)) * Math.sqrt(252) * 100; // Annualized approx
+
+        const downsideVariance = downsideCount > 0 ? downsideDiffSums / downsideCount : 0;
+        const downsideVolatility = Math.sqrt(downsideVariance) * Math.sqrt(252) * 100;
+
+        const rfr = 4.0; // 4% proxy risk-free rate
+        const sharpeRatio = volatility > 0 ? (return6m - rfr) / volatility : 0;
+        const sortinoRatio = downsideVolatility > 0 ? (return6m - rfr) / downsideVolatility : sharpeRatio;
 
         // Simple MA trend check
         const ma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
@@ -108,7 +121,9 @@ export class ScreenerService {
             + (return6m > 0 ? Math.min(return6m, 50) : Math.max(return6m, -50))
             - (volatility > 40 ? 10 : 0)
             - (maxDrawdown > 20 ? 15 : 0)
-            + (trendStrength > 0 ? 5 : -5);
+            + (trendStrength > 0 ? 5 : -5)
+            + (sharpeRatio > 1 ? 5 : 0) // Reward good risk-adjusted returns
+            + (sortinoRatio > 1 ? 5 : 0);
 
         score = Math.max(0, Math.min(100, score));
 
@@ -119,7 +134,7 @@ export class ScreenerService {
 
         return {
             score,
-            metrics: { return6m, volatility, maxDrawdown, trendStrength },
+            metrics: { return6m, volatility, maxDrawdown, trendStrength, sharpeRatio, sortinoRatio },
             flags
         };
     }

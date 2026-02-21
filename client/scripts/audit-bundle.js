@@ -20,7 +20,11 @@ const FORBIDDEN_STRINGS = [
     'authorization bearer', // Case insensitive later
     'x-api-key',
     'FINNHUB_API_KEY',
-    'sk-'
+    'sk-',
+    'ENCRYPTION_MASTER_KEY',
+    'ADMIN_JOB_TOKEN',
+    'JWT_SECRET',
+    'finance_db.json'
 ];
 
 if (!fs.existsSync(BUNDLE_DIR)) {

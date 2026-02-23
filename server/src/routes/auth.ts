@@ -5,11 +5,11 @@ import bcrypt from 'bcryptjs';
 
 const authSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(6)
+    password: z.string().min(10)
 });
 
 export default async function authRoutes(fastify: FastifyInstance) {
-    fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
+    fastify.post('/register', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
         try {
             const { email, password } = authSchema.parse(request.body);
 
@@ -23,7 +23,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 data: { email, passwordHash, role: 'USER' }
             });
 
-            const token = fastify.jwt.sign({ id: user.id, email: user.email, role: user.role });
+            const token = fastify.jwt.sign({ id: user.id });
             reply.setCookie('token', token, {
                 path: '/',
                 httpOnly: true,
@@ -41,7 +41,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
     });
 
-    fastify.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
+    fastify.post('/login', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
         try {
             const { email, password } = authSchema.parse(request.body);
 
@@ -64,7 +64,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 data: { lastLoginAt: new Date() }
             });
 
-            const token = fastify.jwt.sign({ id: user.id, email: user.email, role: user.role });
+            const token = fastify.jwt.sign({ id: user.id });
             reply.setCookie('token', token, {
                 path: '/',
                 httpOnly: true,
@@ -102,7 +102,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     // --- Prod Skeleton Endpoints ---
 
-    fastify.post('/request-password-reset', async (request: FastifyRequest, reply: FastifyReply) => {
+    fastify.post('/request-password-reset', { config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
         if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true') {
             return reply.status(501).send({ error: 'Password reset is disabled in this environment.' });
         }
@@ -110,11 +110,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         const { email } = schema.parse(request.body);
 
         // TODO: Generate PasswordResetToken, Send Email with Service
-        console.log(`[Prod Skeleton] Password Reset requested for ${email}`);
+        console.log(`[Prod Skeleton] Password Reset requested.`);
         return reply.send({ message: 'If that email is registered, a reset link will be sent.' });
     });
 
-    fastify.post('/reset-password', async (request: FastifyRequest, reply: FastifyReply) => {
+    fastify.post('/reset-password', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
         if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true') {
             return reply.status(501).send({ error: 'Password reset is disabled.' });
         }

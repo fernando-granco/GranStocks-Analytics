@@ -1,6 +1,7 @@
 import { AlphaVantageProvider } from './providers/alphavantage';
 import { BinanceProvider } from './providers/binance';
 import { FinnhubService } from './finnhub';
+import { FinnhubProvider } from './providers/finnhub';
 import { prisma } from './cache';
 
 export class MarketData {
@@ -208,8 +209,9 @@ export class MarketData {
         const fromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         try {
-            return await FinnhubService.getNews(symbol, fromDate, toDate);
+            return await FinnhubProvider.getNews(symbol, fromDate, toDate);
         } catch (e) {
+            console.error('[MarketData] getNews Error:', e);
             return [];
         }
     }
@@ -220,6 +222,26 @@ export class MarketData {
             return await FinnhubService.getMetrics(symbol);
         } catch (e) {
             return null;
+        }
+    }
+
+    static async getFundamentals(symbol: string, assetType: 'STOCK' | 'CRYPTO') {
+        if (assetType === 'CRYPTO') return null;
+        try {
+            return await FinnhubProvider.getFundamentals(symbol);
+        } catch (e) {
+            console.error(`[MarketData] getFundamentals Error:`, e);
+            return null;
+        }
+    }
+
+    static async getEarnings(symbol: string, assetType: 'STOCK' | 'CRYPTO') {
+        if (assetType === 'CRYPTO') return [];
+        try {
+            return await FinnhubProvider.getEarningsCalendar(symbol);
+        } catch (e) {
+            console.error(`[MarketData] getEarnings Error:`, e);
+            return [];
         }
     }
 }

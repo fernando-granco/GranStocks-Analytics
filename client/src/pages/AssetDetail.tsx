@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Cpu, AlertTriangle, Sparkles, Activity, ShieldAlert, BarChart3, Database, FlaskConical } from 'lucide-react';
+import { Cpu, AlertTriangle, Sparkles, Activity, ShieldAlert, BarChart3, Database, FlaskConical, Blocks, Server, Newspaper } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../utils';
+import { TradingViewChart } from '../components/TradingViewChart';
 
 export default function AssetDetail({ symbol, assetType, onBack }: { symbol: string, assetType: 'STOCK' | 'CRYPTO', onBack: () => void }) {
     const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
     const [generatedNarratives, setGeneratedNarratives] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<'CHART' | 'TECHNICAL' | 'RISK' | 'FIRM_VIEW' | 'EVIDENCE'>('CHART');
+    const [activeTab, setActiveTab] = useState<'CHART' | 'TECHNICAL' | 'FUNDAMENTALS' | 'EARNINGS' | 'NEWS' | 'RISK' | 'FIRM_VIEW' | 'EVIDENCE'>('CHART');
     const [range, setRange] = useState<string>('6m');
     const [realtimeAnalysis, setRealtimeAnalysis] = useState<any>(null);
     const [isLoadingRealtime, setIsLoadingRealtime] = useState(false);
@@ -17,6 +18,33 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
         queryFn: async () => {
             const res = await fetch(`/api/asset/summary?symbol=${symbol}&assetType=${assetType}&range=${range}`);
             if (!res.ok) throw new Error('Failed to fetch summary');
+            return res.json();
+        }
+    });
+
+    const { data: fundamentals, isLoading: isLoadingFundamentals } = useQuery({
+        queryKey: ['assetFundamentals', symbol, assetType],
+        queryFn: async () => {
+            const res = await fetch(`/api/data/fundamentals?symbol=${symbol}&assetType=${assetType}`);
+            if (!res.ok) return null;
+            return res.json();
+        }
+    });
+
+    const { data: earnings, isLoading: isLoadingEarnings } = useQuery({
+        queryKey: ['assetEarnings', symbol, assetType],
+        queryFn: async () => {
+            const res = await fetch(`/api/data/earnings?symbol=${symbol}&assetType=${assetType}`);
+            if (!res.ok) return [];
+            return res.json();
+        }
+    });
+
+    const { data: news, isLoading: isLoadingNews } = useQuery({
+        queryKey: ['assetNews', symbol, assetType],
+        queryFn: async () => {
+            const res = await fetch(`/api/data/news?symbol=${symbol}&assetType=${assetType}`);
+            if (!res.ok) return [];
             return res.json();
         }
     });
@@ -86,11 +114,19 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
     }, [isLoadingSummary, symbol, assetType]);
 
     // Prepare chart data format
-    const chartData = summary?.candles?.t ? summary.candles.t.map((timestamp: number, idx: number) => ({
-        date: new Date(timestamp * 1000).toLocaleDateString(),
-        price: summary.candles.c[idx],
-        volume: summary.candles.v[idx]
-    })) : [];
+    const chartData = summary?.history?.c ? summary.history.t.map((timestamp: number, idx: number) => {
+        const dt = new Date(timestamp * 1000);
+        return {
+            time: timestamp,
+            date: dt.toLocaleDateString(),
+            open: summary.history.o?.[idx] || summary.history.c[idx], // Fallbacks if not provided
+            high: summary.history.h?.[idx] || summary.history.c[idx],
+            low: summary.history.l?.[idx] || summary.history.c[idx],
+            close: summary.history.c[idx],
+            price: summary.history.c[idx],
+            volume: summary.history.v?.[idx] || 0
+        };
+    }) : [];
 
     // Deterministic Mock "Algorithm" Signal for side-by-side comparison
     const getAlgoAction = () => {
@@ -138,6 +174,15 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                             <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar border-b border-neutral-800">
                                 <TabButton active={activeTab === 'CHART'} onClick={() => setActiveTab('CHART')} icon={<BarChart3 size={16} />}>Price Action</TabButton>
                                 <TabButton active={activeTab === 'TECHNICAL'} onClick={() => setActiveTab('TECHNICAL')} icon={<Activity size={16} />}>Technicals</TabButton>
+                                {assetType === 'STOCK' && (
+                                    <>
+                                        <TabButton active={activeTab === 'FUNDAMENTALS'} onClick={() => setActiveTab('FUNDAMENTALS')} icon={<Blocks size={16} />}>Fundamentals</TabButton>
+                                        <TabButton active={activeTab === 'EARNINGS'} onClick={() => setActiveTab('EARNINGS')} icon={<Server size={16} />}>Earnings</TabButton>
+                                    </>
+                                )}
+                                {assetType === 'STOCK' && (
+                                    <TabButton active={activeTab === 'NEWS'} onClick={() => setActiveTab('NEWS')} icon={<Newspaper size={16} />}>Market News</TabButton>
+                                )}
                                 <TabButton active={activeTab === 'RISK'} onClick={() => setActiveTab('RISK')} icon={<ShieldAlert size={16} />}>Risk Flags</TabButton>
                                 <TabButton active={activeTab === 'FIRM_VIEW'} onClick={() => setActiveTab('FIRM_VIEW')} icon={<Database size={16} />}>Firm View Roles</TabButton>
                                 <TabButton active={activeTab === 'EVIDENCE'} onClick={() => setActiveTab('EVIDENCE')} icon={<FlaskConical size={16} className="text-amber-500" />}>
@@ -163,20 +208,9 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                             </div>
                                         </div>
 
-                                        <div className="h-[350px] w-full">
+                                        <div className="h-[350px] w-full mt-4">
                                             {chartData.length > 0 ? (
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <LineChart data={chartData}>
-                                                        <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
-                                                        <XAxis dataKey="date" stroke="#525252" fontSize={12} tickMargin={10} minTickGap={30} />
-                                                        <YAxis domain={['auto', 'auto']} stroke="#525252" fontSize={12} tickFormatter={v => `$${v}`} />
-                                                        <Tooltip
-                                                            contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
-                                                            itemStyle={{ color: '#a78bfa' }}
-                                                        />
-                                                        <Line type="monotone" dataKey="price" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 6, fill: '#818cf8', stroke: '#312e81', strokeWidth: 2 }} />
-                                                    </LineChart>
-                                                </ResponsiveContainer>
+                                                <TradingViewChart data={chartData} type="candle" />
                                             ) : (
                                                 <div className="h-full flex flex-col items-center justify-center text-neutral-500">
                                                     <AlertTriangle className="mb-2 h-8 w-8 text-neutral-600" />
@@ -223,6 +257,95 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                             <div className="text-center py-8 text-neutral-500 animate-pulse">
                                                 {isLoadingRealtime ? 'Computing analysis...' : 'No indicators available.'}
                                             </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeTab === 'FUNDAMENTALS' && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-semibold text-neutral-300 border-b border-neutral-800 pb-2">Fundamental Metrics</h3>
+                                        {isLoadingFundamentals ? (
+                                            <div className="text-center py-8 text-neutral-500 animate-pulse">Loading financials...</div>
+                                        ) : fundamentals ? (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                                <MetricCard label="P/E Ratio (Ann)" value={fundamentals.peRatio?.toFixed(2) || 'N/A'} />
+                                                <MetricCard label="EPS (Ann)" value={fundamentals.eps ? `$${fundamentals.eps.toFixed(2)}` : 'N/A'} />
+                                                <MetricCard label="Market Cap" value={fundamentals.marketCap ? `$${(fundamentals.marketCap / 1000).toFixed(2)}B` : 'N/A'} />
+                                                <MetricCard label="52W High" value={fundamentals.fiftyTwoWeekHigh ? `$${fundamentals.fiftyTwoWeekHigh.toFixed(2)}` : 'N/A'} />
+                                                <MetricCard label="52W Low" value={fundamentals.fiftyTwoWeekLow ? `$${fundamentals.fiftyTwoWeekLow.toFixed(2)}` : 'N/A'} />
+                                                <MetricCard label="Target Price" value={fundamentals.targetPrice ? `$${fundamentals.targetPrice.toFixed(2)}` : 'N/A'} />
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8 text-neutral-500">Fundamental data unavailable.</div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeTab === 'EARNINGS' && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-semibold text-neutral-300 border-b border-neutral-800 pb-2">Earnings Calendar</h3>
+                                        {isLoadingEarnings ? (
+                                            <div className="text-center py-8 text-neutral-500 animate-pulse">Loading schedule...</div>
+                                        ) : earnings && earnings.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {earnings.map((e: any, idx: number) => (
+                                                    <div key={idx} className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 flex justify-between items-center">
+                                                        <div>
+                                                            <div className="font-bold text-lg text-white mb-1">{e.date}</div>
+                                                            <div className="text-xs text-neutral-500">EPS Est: <span className="text-neutral-300 font-mono">{e.epsEstimate || '-'}</span> | Rev Est: <span className="text-neutral-300 font-mono">{e.revenueEstimate ? `$${(e.revenueEstimate / 1e6).toFixed(1)}M` : '-'}</span></div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            {e.epsActual ? (
+                                                                <span className={cn("px-3 py-1 text-xs font-bold rounded", Number(e.epsActual) >= Number(e.epsEstimate) ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400")}>
+                                                                    Actual EPS: {e.epsActual}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-3 py-1 text-xs font-bold rounded bg-blue-500/20 text-blue-400">Upcoming</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8 text-neutral-500">No upcoming earnings events scheduled.</div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {activeTab === 'NEWS' && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-semibold text-neutral-300 border-b border-neutral-800 pb-2">Recent News & Sentiment</h3>
+                                        {isLoadingNews ? (
+                                            <div className="text-center py-8 text-neutral-500 animate-pulse">Loading news feed...</div>
+                                        ) : news && news.length > 0 ? (
+                                            <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+                                                {news.map((n: any) => (
+                                                    <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer" className="block p-4 bg-neutral-950 rounded-xl border border-neutral-800 hover:border-neutral-700 transition-colors group">
+                                                        <div className="flex justify-between items-start gap-4 mb-2">
+                                                            <div className="flex-1">
+                                                                <h4 className="font-bold text-sm text-neutral-200 group-hover:text-indigo-400 transition-colors line-clamp-2">{n.headline}</h4>
+                                                                <div className="flex gap-2 items-center mt-1 text-xs text-neutral-500">
+                                                                    <span>{n.source}</span>
+                                                                    <span>&bull;</span>
+                                                                    <span>{new Date(n.publishedAt).toLocaleDateString()}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-col items-end shrink-0">
+                                                                <span className="text-[10px] uppercase font-bold text-neutral-500 mb-1">Sentiment</span>
+                                                                <div className={cn("px-2 py-0.5 rounded text-xs font-bold w-16 text-center shadow-inner",
+                                                                    n.sentimentScore > 0.2 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                                                                        n.sentimentScore < -0.2 ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" :
+                                                                            "bg-neutral-800 text-neutral-400 border border-neutral-700")}>
+                                                                    {n.sentimentScore > 0.2 ? 'BULL' : n.sentimentScore < -0.2 ? 'BEAR' : 'NEUTRAL'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-xs text-neutral-400 line-clamp-2 mt-2 leading-relaxed">{n.summary}</p>
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8 text-neutral-500">No recent news available.</div>
                                         )}
                                     </div>
                                 )}

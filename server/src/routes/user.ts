@@ -65,7 +65,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
         const payload = request.user as { id: string };
         const schema = z.object({
             currentPassword: z.string(),
-            newPassword: z.string().min(6)
+            newPassword: z.string().min(10)
         });
 
         try {

@@ -5,6 +5,7 @@ import { IndicatorService, PredictionService, FirmViewService } from './analysis
 import { PriceHistoryService } from './price-history';
 import { DemoService } from './demo';
 import { ScreenerService } from './screener';
+import { AlertService } from './alerts';
 
 export class DailyJobService {
     static async processAsset(asset: any, dateStr: string) {
@@ -63,6 +64,12 @@ export class DailyJobService {
                 });
             }
 
+            // Evaluate Alerts for the end-of-day close
+            if (candles.c && candles.c.length > 0) {
+                const latestClose = candles.c[candles.c.length - 1];
+                await AlertService.evaluateAlerts(asset.symbol, asset.type as 'STOCK' | 'CRYPTO', latestClose, indicators.rsi14 ?? undefined);
+            }
+
             // Compute Firm Views (AnalysisSnapshot)
             const firmViews = FirmViewService.generateFirmViews(indicators);
             for (const [role, payload] of Object.entries(firmViews)) {
@@ -84,7 +91,7 @@ export class DailyJobService {
             // Sleep brief moment to allow tokens to refill cleanly if queue is very large
             await new Promise(r => setTimeout(r, 1000));
         } catch (err) {
-            console.error(`[Job] Error processing ${asset.symbol}:`, err);
+            console.error(`[Job] Error processing ${asset.symbol}: `, err);
         }
     }
 
@@ -97,7 +104,7 @@ export class DailyJobService {
             day: '2-digit'
         }).format(new Date());
 
-        console.log(`Starting Daily Job for Date: ${dateStr}`);
+        console.log(`Starting Daily Job for Date: ${dateStr} `);
 
         // 1. Gather all active global assets
         const globalAssets = await prisma.asset.findMany({ where: { isActive: true } });
@@ -137,7 +144,7 @@ export class DailyJobService {
         for (const asset of assetsToProcess) {
             await this.processAsset(asset, dateStr);
         }
-        console.log(`[Job] Completed Daily Job for Date: ${dateStr}`);
+        console.log(`[Job] Completed Daily Job for Date: ${dateStr} `);
     }
 
     static startCron() {

@@ -2,10 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Server, Play, Blocks } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
-import { SortableCard } from '../components/SortableCard';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { PortfolioTracker } from '../components/PortfolioTracker';
+import { SortableCard } from '../components/SortableCard';
 
 export default function Dashboard({ onSelect }: { onSelect: (symbol: string, assetType: string) => void }) {
     const { user } = useAuth();
@@ -98,9 +99,13 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
         <div className="space-y-6">
             <div className="mb-2">
                 <p className="text-neutral-400 font-medium">Welcome, {user?.fullName || user?.email}</p>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Overview Dashboard</h1>
             </div>
+
+            <PortfolioTracker />
+
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold tracking-tight">Market Overview</h1>
+                <h2 className="text-2xl font-bold tracking-tight">Market Overview</h2>
                 {user?.role === 'ADMIN' && (
                     <button
                         onClick={() => runJobMutation.mutate()}
@@ -127,7 +132,7 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
                                     key={item.symbol}
                                     item={item}
                                     onClick={() => onSelect(item.symbol, item.assetType)}
-                                    onUntrack={(s) => untrackMutation.mutate(s)}
+                                    onUntrack={(s: string) => untrackMutation.mutate(s)}
                                 />
                             ))}
                         </div>

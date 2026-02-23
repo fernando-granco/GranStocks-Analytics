@@ -1,5 +1,6 @@
 import { prisma } from './cache';
 import { PriceHistoryService } from './price-history';
+import { AlertService } from './alerts';
 
 export class HistoryWarmQueue {
     private static isProcessing = false;
@@ -65,6 +66,17 @@ export class HistoryWarmQueue {
                 await new Promise(r => setTimeout(r, 2000));
 
                 await PriceHistoryService.backfillSymbol(item.symbol, item.assetType);
+
+                // Fetch latest price for alert evaluation
+                const latestCandle = await prisma.priceHistory.findFirst({
+                    where: { symbol: item.symbol, assetType: item.assetType },
+                    orderBy: { date: 'desc' }
+                });
+
+                if (latestCandle) {
+                    // Try to generate simple RSI 14 (will hook fully later, mock pass for now)
+                    await AlertService.evaluateAlerts(item.symbol, item.assetType, latestCandle.close, undefined);
+                }
 
                 await prisma.symbolCacheState.update({
                     where: { assetType_symbol: { assetType: item.assetType, symbol: item.symbol } },

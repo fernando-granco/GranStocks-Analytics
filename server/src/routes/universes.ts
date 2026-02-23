@@ -20,11 +20,11 @@ interface FinDBAsset {
 
 // Lazy load the mock/lightweight FinanceDB file
 let financeDbCache: FinDBAsset[] | null = null;
-function getFinanceDb(): FinDBAsset[] {
+async function getFinanceDb(): Promise<FinDBAsset[]> {
     if (financeDbCache) return financeDbCache;
     try {
         const p = path.join(__dirname, '..', '..', 'data', 'finance_db.json');
-        financeDbCache = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        financeDbCache = JSON.parse(await fs.promises.readFile(p, 'utf-8'));
         return financeDbCache!;
     } catch {
         // Fallback if not seeded
@@ -44,7 +44,7 @@ export default async function universeRoutes(server: FastifyInstance) {
             exchange: z.string().optional()
         });
         const query = schema.parse(req.query);
-        const db = getFinanceDb();
+        const db = await getFinanceDb();
 
         let results: FinDBAsset[] = [];
 
@@ -121,7 +121,7 @@ export default async function universeRoutes(server: FastifyInstance) {
     });
 
     server.get('/symbols/metadata-options', async (req, reply) => {
-        const db = getFinanceDb();
+        const db = await getFinanceDb();
         const sectors = Array.from(new Set(db.map(a => a.sector))).filter(Boolean).sort();
         const industries = Array.from(new Set(db.map(a => a.industry))).filter(Boolean).sort();
         const exchanges = Array.from(new Set(db.map(a => a.exchange))).filter(Boolean).sort();
@@ -163,8 +163,21 @@ export default async function universeRoutes(server: FastifyInstance) {
         });
         if (!universe) return reply.status(404).send({ error: 'Universe not found' });
 
-        const criteria = JSON.parse(universe.definitionJson);
-        const db = getFinanceDb();
+        let criteria: any;
+        try {
+            criteria = JSON.parse(universe.definitionJson);
+            z.object({
+                symbols: z.array(z.any()).optional(),
+                q: z.string().optional(),
+                sector: z.string().optional(),
+                industry: z.string().optional(),
+                exchange: z.string().optional()
+            }).parse(criteria);
+        } catch {
+            return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
+        }
+
+        const db = await getFinanceDb();
         let results: FinDBAsset[] = [];
 
         // Support for manually constructed Watchlists (array of symbols)
@@ -240,8 +253,21 @@ export default async function universeRoutes(server: FastifyInstance) {
         if (!config) return reply.status(400).send({ error: 'No active AI Provider configured. Please add one in Settings.' });
 
         // Resolve assets (reusing logic from resolve route)
-        const criteria = JSON.parse(universe.definitionJson);
-        const db = getFinanceDb();
+        let criteria: any;
+        try {
+            criteria = JSON.parse(universe.definitionJson);
+            z.object({
+                symbols: z.array(z.any()).optional(),
+                q: z.string().optional(),
+                sector: z.string().optional(),
+                industry: z.string().optional(),
+                exchange: z.string().optional()
+            }).parse(criteria);
+        } catch {
+            return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
+        }
+
+        const db = await getFinanceDb();
         let results: FinDBAsset[] = [];
 
         // Support for manually constructed Watchlists (array of symbols)

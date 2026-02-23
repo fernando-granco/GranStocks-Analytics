@@ -1,6 +1,7 @@
 import fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
+import fastifyRateLimit from '@fastify/rate-limit';
 import path from 'path';
 import { prisma } from './services/cache';
 import { registerRoutes } from './routes';
@@ -12,6 +13,7 @@ import { bootstrapSuperAdmin } from './services/admin';
 import demoRoutes from './routes/demo';
 import adminRoutes from './routes/admin';
 import universeRoutes from './routes/universes';
+import portfolioRoutes from './routes/portfolio';
 import { DemoService } from './services/demo';
 import userRoutes from './routes/user';
 
@@ -20,6 +22,12 @@ const server = fastify({ logger: true });
 async function start() {
     await server.register(cors, {
         origin: process.env.APP_ORIGIN || 'http://localhost:5173'
+    });
+
+    await server.register(fastifyRateLimit, {
+        global: false, // We only apply it to specific routes like /auth/* if configured
+        max: 100,
+        timeWindow: '1 minute'
     });
 
     // Health Check
@@ -33,7 +41,8 @@ async function start() {
     server.register(demoRoutes, { prefix: '/api/demo' }); // Public
     server.register(authRoutes, { prefix: '/api/auth' }); // Public
     server.register(adminRoutes, { prefix: '/api/admin' }); // Auto-checks preValidation RequireAdmin inside
-    server.register(universeRoutes, { prefix: '/api' }); // Registers /api/symbols and /api/universes
+    server.register(universeRoutes, { prefix: '/api' });
+    server.register(portfolioRoutes, { prefix: '/api/portfolio' }); // Registers /api/symbols and /api/universes
     server.register(userRoutes, { prefix: '/api/user' });
     await registerRoutes(server); // Protected by preValidation locally
 
@@ -80,8 +89,8 @@ async function start() {
         }
 
         // High-Concurrency SQLite PRAGMAS
-        await prisma.$queryRawUnsafe(`PRAGMA journal_mode = WAL;`);
-        await prisma.$queryRawUnsafe(`PRAGMA busy_timeout = 5000;`);
+        await prisma.$queryRaw`PRAGMA journal_mode = WAL;`;
+        await prisma.$queryRaw`PRAGMA busy_timeout = 5000;`;
 
         await bootstrapSuperAdmin(); // Guarantee superadmin exists
 

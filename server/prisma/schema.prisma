@@ -31,6 +31,8 @@ model User {
   targetAudits   AdminAuditLog[]      @relation("target")
   AnalysisConfig AnalysisConfig[]
   PromptTemplate PromptTemplate[]
+  AlertGroup        AlertRule[]
+  PortfolioGroup    PortfolioPosition[]
 }
 
 model Asset {
@@ -308,4 +310,65 @@ model SymbolCacheState {
   updatedAt     DateTime  @updatedAt
 
   @@unique([assetType, symbol])
+  @@index([status])
+}
+
+model AlertRule {
+  id              String   @id @default(uuid())
+  userId          String
+  symbol          String
+  conditionType   String   // PRICE_ABOVE, PRICE_BELOW, RSI_ABOVE, RSI_BELOW
+  thresholdValue  Float
+  isActive        Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model PortfolioPosition {
+  id          String   @id @default(uuid())
+  userId      String
+  symbol      String
+  assetType   String   @default("STOCK")
+  quantity    Float
+  averageCost Float
+  acquiredAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AssetFundamental {
+  symbol           String   @id
+  peRatio          Float?
+  eps              Float?
+  marketCap        Float?
+  fiftyTwoWeekHigh Float?
+  fiftyTwoWeekLow  Float?
+  targetPrice      Float?
+  updatedAt        DateTime @default(now())
+}
+
+model EarningsEvent {
+  id              String   @id @default(uuid())
+  symbol          String
+  date            String   // YYYY-MM-DD
+  epsEstimate     Float?
+  epsActual       Float?
+  revenueEstimate Float?
+  revenueActual   Float?
+
+  @@unique([symbol, date])
+}
+
+model AssetNews {
+  id             String   @id @default(uuid())
+  symbol         String
+  headline       String
+  summary        String
+  source         String
+  url            String   @unique
+  sentimentScore Float?   // -1.0 to 1.0
+  publishedAt    DateTime
+  createdAt      DateTime @default(now())
 }

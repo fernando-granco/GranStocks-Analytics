@@ -142,6 +142,18 @@ export async function registerRoutes(server: FastifyInstance) {
         return await MarketData.getMetrics(symbol, assetType);
     });
 
+    server.get('/api/data/fundamentals', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
+        const { symbol, assetType } = schema.parse(req.query);
+        return await MarketData.getFundamentals(symbol, assetType);
+    });
+
+    server.get('/api/data/earnings', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
+        const { symbol, assetType } = schema.parse(req.query);
+        return await MarketData.getEarnings(symbol, assetType);
+    });
+
     server.get('/api/data/news', { preValidation: [server.authenticate] }, async (req, reply) => {
         const schema = z.object({
             symbol: z.string().toUpperCase(),
@@ -232,7 +244,6 @@ export async function registerRoutes(server: FastifyInstance) {
             create: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', ...updates }
         });
 
-        return { mode: prefs.mode, timezone: prefs.timezone };
         return { mode: prefs.mode, timezone: prefs.timezone };
     });
 

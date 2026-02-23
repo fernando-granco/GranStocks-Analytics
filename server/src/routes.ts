@@ -54,6 +54,8 @@ export async function registerRoutes(server: FastifyInstance) {
             });
 
             // Auto-trigger background processing for this new asset
+            import('./services/history-queue').then(q => q.HistoryWarmQueue.enqueue(symbol, assetType, 'tracked_asset_added')).catch(() => { });
+
             setImmediate(async () => {
                 try {
                     const dateStr = new Intl.DateTimeFormat('en-CA', {
@@ -231,6 +233,67 @@ export async function registerRoutes(server: FastifyInstance) {
         });
 
         return { mode: prefs.mode, timezone: prefs.timezone };
+        return { mode: prefs.mode, timezone: prefs.timezone };
+    });
+
+    server.post('/api/settings/analysis', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const authUser = req.user as { id: string };
+        const schema = z.object({
+            name: z.string(),
+            assetTypeScope: z.string().default('BOTH'),
+            configJson: z.string(),
+            isActive: z.boolean().default(true)
+        });
+        const data = schema.parse(req.body);
+
+        if (data.isActive) {
+            await prisma.analysisConfig.updateMany({
+                where: { userId: authUser.id, assetTypeScope: data.assetTypeScope },
+                data: { isActive: false }
+            });
+        }
+
+        return await prisma.analysisConfig.create({
+            data: { ...data, userId: authUser.id }
+        });
+    });
+
+    server.delete('/api/settings/analysis/:id', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const { id } = req.params as { id: string };
+        const authUser = req.user as { id: string };
+
+        const config = await prisma.analysisConfig.findUnique({ where: { id } });
+        if (!config || config.userId !== authUser.id) {
+            return reply.status(404).send({ error: 'Config not found' });
+        }
+
+        await prisma.analysisConfig.delete({ where: { id } });
+        return { success: true };
+    });
+
+    // --- Prompt Template API ---
+    server.get('/api/settings/prompts', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const authUser = req.user as { id: string };
+        return await prisma.promptTemplate.findMany({
+            where: { userId: authUser.id }
+        });
+    });
+
+    server.post('/api/settings/prompts', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const authUser = req.user as { id: string };
+        const schema = z.object({
+            role: z.string(),
+            templateText: z.string(),
+            outputMode: z.string().default('TEXT_ONLY'),
+            enabled: z.boolean().default(true)
+        });
+        const data = schema.parse(req.body);
+
+        return await prisma.promptTemplate.upsert({
+            where: { userId_scope_role: { userId: authUser.id, scope: 'GLOBAL', role: data.role } },
+            update: data,
+            create: { ...data, userId: authUser.id, scope: 'GLOBAL' }
+        });
     });
 
     // --- Deterministic Outputs & Asset Summary API ---
@@ -238,12 +301,12 @@ export async function registerRoutes(server: FastifyInstance) {
         const schema = z.object({
             symbol: z.string().toUpperCase(),
             assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK'),
-            dateHour: z.string().optional(), // YYYY-MM-DDTHH:00
+            date: z.string().optional(), // YYYY-MM-DD
             range: z.string().optional().default('6m')
         });
-        const { symbol, assetType, dateHour, range } = schema.parse(req.query);
+        const { symbol, assetType, date, range } = schema.parse(req.query);
 
-        const dh = dateHour || new Date().toISOString().substring(0, 13) + ':00';
+        const dh = date || new Date().toISOString().substring(0, 10);
 
         // 1. Get raw quote & candles
         const quote = await MarketData.getQuote(symbol, assetType);
@@ -264,7 +327,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
         // 3. Fetch Firm View deterministic roles (AnalysisSnapshot)
         const firmView = await prisma.analysisSnapshot.findMany({
-            where: { symbol, assetType, ...(ind ? { dateHour: ind.date } : {}) }
+            where: { symbol, assetType, ...(ind ? { date: ind.date } : {}) }
         });
 
         // 4. Transform firmView into a lookup dictionary by role
@@ -330,10 +393,10 @@ export async function registerRoutes(server: FastifyInstance) {
             where: { universeType_universeName: { universeType: assetType, universeName: universe } }
         });
 
-        // Get all snapshots ordered by dateHour desc (latest first), then score desc
+        // Get all snapshots ordered by date desc (latest first), then score desc
         const all = await prisma.screenerSnapshot.findMany({
             where: { universeName: universe },
-            orderBy: [{ dateHour: 'desc' }, { score: 'desc' }]
+            orderBy: [{ date: 'desc' }, { score: 'desc' }]
         });
 
         // Deduplicate: keep the first (i.e. latest + highest score) per symbol
@@ -368,7 +431,7 @@ export async function registerRoutes(server: FastifyInstance) {
                 // Check if already exists unless forced
                 if (!force) {
                     const existing = await prisma.aiNarrative.findFirst({
-                        where: { llmConfigId: configId, symbol, dateHour: date }
+                        where: { llmConfigId: configId, symbol, date }
                     });
                     if (existing) {
                         results.push(existing);
@@ -389,7 +452,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
                 const firmView = await prisma.analysisSnapshot.findMany({
                     where: { symbol },
-                    orderBy: { dateHour: 'desc' },
+                    orderBy: { date: 'desc' },
                     take: 10
                 });
 
@@ -418,7 +481,7 @@ export async function registerRoutes(server: FastifyInstance) {
                         data: {
                             userId: authUser.id,
                             symbol,
-                            dateHour: date,
+                            date,
                             llmConfigId: configId,
                             contentText: narrativeText,
                             providerUsed: config!.provider,

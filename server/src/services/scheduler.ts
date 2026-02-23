@@ -67,13 +67,13 @@ export class DailyJobService {
             const firmViews = FirmViewService.generateFirmViews(indicators);
             for (const [role, payload] of Object.entries(firmViews)) {
                 await prisma.analysisSnapshot.upsert({
-                    where: { dateHour_assetType_symbol_role: { symbol: asset.symbol, role, dateHour: dateStr, assetType: asset.type } },
+                    where: { date_assetType_symbol_role: { symbol: asset.symbol, role, date: dateStr, assetType: asset.type } },
                     update: { payloadJson: JSON.stringify(payload) },
                     create: {
                         symbol: asset.symbol,
                         assetType: asset.type,
                         role,
-                        dateHour: dateStr,
+                        date: dateStr,
                         payloadJson: JSON.stringify(payload)
                     }
                 });
@@ -99,9 +99,42 @@ export class DailyJobService {
 
         console.log(`Starting Daily Job for Date: ${dateStr}`);
 
-        const assets = await prisma.asset.findMany({ where: { isActive: true } });
+        // 1. Gather all active global assets
+        const globalAssets = await prisma.asset.findMany({ where: { isActive: true } });
+        const assetMap = new Map<string, { symbol: string, type: string }>();
+        globalAssets.forEach(a => assetMap.set(a.symbol, { symbol: a.symbol, type: a.type }));
 
-        for (const asset of assets) {
+        // 2. Gather all individually tracked assets
+        const tracked = await prisma.trackedAsset.findMany();
+        tracked.forEach(t => {
+            if (!assetMap.has(t.symbol)) {
+                // Assume STOCK if not in global db for now, though it could be crypto.
+                // An improvement would be storing assetType in TrackedAsset.
+                assetMap.set(t.symbol, { symbol: t.symbol, type: 'STOCK' });
+            }
+        });
+
+        // 3. Gather assets from all Universes
+        const universes = await prisma.universe.findMany();
+        universes.forEach(u => {
+            try {
+                const def = JSON.parse(u.definitionJson);
+                if (Array.isArray(def.symbols)) {
+                    def.symbols.forEach((s: any) => {
+                        if (!assetMap.has(s.symbol)) {
+                            assetMap.set(s.symbol, { symbol: s.symbol, type: s.assetType || 'STOCK' });
+                        }
+                    });
+                }
+            } catch (e) {
+                // ignore parsing errors for a single universe
+            }
+        });
+
+        const assetsToProcess = Array.from(assetMap.values());
+        console.log(`[Job] Found ${assetsToProcess.length} unique assets to process across all sources.`);
+
+        for (const asset of assetsToProcess) {
             await this.processAsset(asset, dateStr);
         }
         console.log(`[Job] Completed Daily Job for Date: ${dateStr}`);

@@ -194,7 +194,7 @@ export default function UniverseDetail() {
                                 <SortableCard
                                     key={item.symbol}
                                     item={item}
-                                    onClick={() => navigate(`/app/demo/asset/${item.assetType}/${item.symbol}`)}
+                                    onClick={() => navigate(`/app/asset/${item.assetType}/${item.symbol}`)}
                                     onUntrack={(s) => untrackMutation.mutate(s)}
                                 />
                             ))}

@@ -1,3 +1,5 @@
+import { PredictConfigSchema, AnalysisConfigPayload, DEFAULT_ANALYSIS_CONFIG } from './config';
+
 // Compute basic indicators from OHLCV array
 // Finnhub candles format: { c: [], h: [], l: [], o: [], v: [], t: [], s: "ok" }
 
@@ -238,12 +240,12 @@ export class PredictionService {
     /**
      * Ensemble logical prediction model without AI
      */
-    static predict(indicators: any, horizon: 1 | 5 | 20) {
+    static predict(indicators: any, horizon: 1 | 5 | 20, config: AnalysisConfigPayload['predict'] = DEFAULT_ANALYSIS_CONFIG.predict) {
         let score = 0;
         let explanation = [];
         let riskFlags = [];
 
-        const { sma20, sma50, sma20Slope, rsi14, vol20, drawdown90 } = indicators;
+        const { sma20, sma50, sma20Slope, rsi14, vol20, drawdown90, dataQualityScore } = indicators;
 
         // 1. Trend
         if (sma20 && sma50) {
@@ -266,22 +268,30 @@ export class PredictionService {
             }
         }
 
-        // 2. Mean Reversion
+        // 3. Momentum (RSI)
         if (rsi14 !== null) {
-            if (rsi14 < 30) {
-                score += 1.5;
-                explanation.push(`RSI is oversold (${rsi14.toFixed(1)}), suggesting a potential mean-reversion bounce.`);
-            } else if (rsi14 > 70) {
-                score -= 1.5;
-                explanation.push(`RSI is overbought (${rsi14.toFixed(1)}), suggesting a potential pullback.`);
+            if (rsi14 > config.rsiOverbought) {
+                score -= 1;
+                explanation.push(`RSI is overbought (${rsi14.toFixed(1)} > ${config.rsiOverbought}), signaling potential pullback.`);
+                riskFlags.push('Overbought');
+            } else if (rsi14 < config.rsiOversold) {
+                score += 1;
+                explanation.push(`RSI is oversold (${rsi14.toFixed(1)} < ${config.rsiOversold}), signaling potential bounce.`);
             } else {
                 explanation.push(`RSI is neutral (${rsi14.toFixed(1)}).`);
             }
         }
 
-        // 3. Volatility penalties
+        // 4. Volatility
+        if (vol20 !== null) {
+            if (vol20 > config.highVolatilityThreshold) {
+                score -= 1;
+                explanation.push(`High annualized volatility (${(vol20 * 100).toFixed(1)}% > ${(config.highVolatilityThreshold * 100).toFixed(1)}%) increases uncertainty.`);
+                riskFlags.push('High Volatility');
+            }
+        }
         let confidenceMultiplier = 1.0;
-        if (vol20 !== null && vol20 > 0.4) { // Highly volatile
+        if (vol20 !== null && vol20 > config.highVolatilityThreshold) { // Highly volatile
             confidenceMultiplier *= 0.6;
             riskFlags.push("High historical volatility detected. Predictions are less reliable.");
         }

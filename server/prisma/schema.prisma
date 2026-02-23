@@ -10,23 +10,27 @@ datasource db {
 model User {
   id                 String    @id @default(uuid())
   email              String    @unique
+  fullName           String?
   passwordHash       String
   role               String    @default("USER") // ENUM(USER, ADMIN)
   emailVerifiedAt    DateTime?
   lastLoginAt        DateTime?
   status             String    @default("ACTIVE") // ENUM(ACTIVE, BANNED)
   mustChangePassword Boolean   @default(false)
+  timezone           String    @default("America/Toronto")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  trackedAssets TrackedAsset[]
-  llmConfigs    UserLLMConfig[]
-  narratives    AiNarrative[]
-  preferences   UserPreferences?
-  universes     Universe[]
-  resetTokens   PasswordResetToken[]
-  adminAudits   AdminAuditLog[]      @relation("actor")
-  targetAudits  AdminAuditLog[]      @relation("target")
+  trackedAssets  TrackedAsset[]
+  llmConfigs     UserLLMConfig[]
+  narratives     AiNarrative[]
+  preferences    UserPreferences?
+  universes      Universe[]
+  resetTokens    PasswordResetToken[]
+  adminAudits    AdminAuditLog[]      @relation("actor")
+  targetAudits   AdminAuditLog[]      @relation("target")
+  AnalysisConfig AnalysisConfig[]
+  PromptTemplate PromptTemplate[]
 }
 
 model Asset {
@@ -105,7 +109,7 @@ model AiNarrative {
   userId       String
   assetType    String   @default("STOCK") // STOCK or CRYPTO
   symbol       String? // null = daily summary
-  dateHour     String
+  date         String // YYYY-MM-DD
   role         String   @default("CONSENSUS")
   llmConfigId  String
   contentText  String
@@ -119,7 +123,7 @@ model AiNarrative {
 
 model ScreenerSnapshot {
   id            String   @id @default(uuid())
-  dateHour      String // YYYY-MM-DDTHH:00
+  date          String // YYYY-MM-DD
   universeType  String // STOCK | CRYPTO
   universeName  String
   symbol        String
@@ -132,7 +136,7 @@ model ScreenerSnapshot {
   ts            DateTime @default(now())
   createdAt     DateTime @default(now())
 
-  @@unique([dateHour, universeType, universeName, symbol])
+  @@unique([date, universeType, universeName, symbol])
 }
 
 model JobState {
@@ -151,14 +155,14 @@ model JobState {
 
 model AnalysisSnapshot {
   id          String   @id @default(uuid())
-  dateHour    String // YYYY-MM-DDTHH:00
+  date        String // YYYY-MM-DD
   assetType   String // STOCK | CRYPTO
   symbol      String
   role        String // TECHNICAL, FUNDAMENTAL, SENTIMENT, BULL, BEAR, RISK, CONSENSUS
   payloadJson String
   createdAt   DateTime @default(now())
 
-  @@unique([dateHour, assetType, symbol, role])
+  @@unique([date, assetType, symbol, role])
 }
 
 model UserPreferences {
@@ -192,6 +196,35 @@ model AdminAuditLog {
 
   actorUser  User @relation("actor", fields: [actorUserId], references: [id])
   targetUser User @relation("target", fields: [targetUserId], references: [id])
+}
+
+model AnalysisConfig {
+  id             String   @id @default(uuid())
+  userId         String
+  name           String
+  assetTypeScope String   @default("BOTH") // STOCK, CRYPTO, or BOTH
+  configJson     String // Zod validated JSON containing technical weights and risk thresholds
+  isActive       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model PromptTemplate {
+  id           String   @id @default(uuid())
+  userId       String
+  scope        String   @default("GLOBAL") // GLOBAL or specific Universe ID
+  role         String // TECHNICAL, RISK, CONSENSUS, etc.
+  templateText String
+  outputMode   String   @default("TEXT_ONLY") // TEXT_ONLY, or ACTION_LABELS
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, scope, role])
 }
 
 model Universe {
@@ -247,8 +280,8 @@ model DemoScreenerSnapshot {
 model PriceHistory {
   id        String   @id @default(uuid())
   symbol    String
-  assetType String   // STOCK | CRYPTO
-  date      String   // YYYY-MM-DD
+  assetType String // STOCK | CRYPTO
+  date      String // YYYY-MM-DD
   open      Float
   high      Float
   low       Float
@@ -256,6 +289,23 @@ model PriceHistory {
   volume    Float
   createdAt DateTime @default(now())
 
-  @@unique([symbol, date])
-  @@index([symbol, date])
+  @@unique([assetType, symbol, date])
+  @@index([assetType, symbol, date])
+}
+
+model SymbolCacheState {
+  id            String    @id @default(uuid())
+  assetType     String
+  symbol        String
+  status        String    @default("PENDING") // PENDING, READY, FAILED
+  earliestDate  String?
+  latestDate    String?
+  barsCount     Int       @default(0)
+  lastAttemptAt DateTime?
+  lastSuccessAt DateTime?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([assetType, symbol])
 }

@@ -92,6 +92,18 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
         volume: summary.candles.v[idx]
     })) : [];
 
+    // Deterministic Mock "Algorithm" Signal for side-by-side comparison
+    const getAlgoAction = () => {
+        if (!effectiveIndicators) return 'WAIT';
+        let score = 0;
+        if (effectiveIndicators.sma20 > effectiveIndicators.sma50) score += 1;
+        if (effectiveIndicators.rsi14 < 40) score += 1;
+        if (effectiveIndicators.rsi14 > 60) score -= 1;
+        if (effectiveIndicators.vol20 && effectiveIndicators.vol20 > 0.4) score -= 1;
+        return score > 0 ? 'BUY' : score < 0 ? 'SELL' : 'WAIT';
+    };
+    const algoAction = getAlgoAction();
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <button onClick={onBack} className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
@@ -330,16 +342,60 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
 
                                     <div className="mt-4 flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
                                         {generatedNarratives.length > 0 ? (
-                                            generatedNarratives.map((n: any, idx) => (
-                                                <div key={idx} className="bg-neutral-950 p-4 rounded-xl border border-neutral-800">
-                                                    <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider mb-2">
-                                                        {n.providerUsed}
+                                            generatedNarratives.map((n: any, idx) => {
+                                                let parsedAction = null;
+                                                let narrativeText = n.contentText;
+
+                                                try {
+                                                    const maybeJSON = JSON.parse(n.contentText);
+                                                    if (maybeJSON && maybeJSON.action && maybeJSON.narrative) {
+                                                        parsedAction = maybeJSON.action.toUpperCase();
+                                                        narrativeText = maybeJSON.narrative;
+                                                    }
+                                                } catch (e) {
+                                                    // Not JSON, just normal text
+                                                }
+
+                                                return (
+                                                    <div key={idx} className="bg-neutral-950 p-4 rounded-xl border border-neutral-800">
+                                                        <div className="flex justify-between items-start mb-3">
+                                                            <div className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">
+                                                                {n.providerUsed}
+                                                            </div>
+                                                            {parsedAction && (
+                                                                <div className="flex flex-col items-end gap-1">
+                                                                    <div className="flex gap-2">
+                                                                        <div className="flex flex-col items-end">
+                                                                            <span className="text-[9px] text-neutral-500 uppercase">Algorithm</span>
+                                                                            <span className={cn("px-2 py-0.5 text-xs font-bold rounded", algoAction === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : algoAction === 'SELL' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20')}>
+                                                                                {algoAction}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex flex-col items-end">
+                                                                            <span className="text-[9px] text-indigo-500 uppercase">LLM Signal</span>
+                                                                            <span className={cn("px-2 py-0.5 text-xs font-bold rounded", parsedAction === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : parsedAction === 'SELL' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50' : 'bg-amber-500/20 text-amber-400 border border-amber-500/50')}>
+                                                                                {parsedAction}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    {algoAction !== parsedAction && (
+                                                                        <span className="text-[10px] text-rose-400 animate-pulse font-medium">DISAGREEMENT</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="prose prose-invert prose-sm">
+                                                            {narrativeText}
+                                                        </div>
+                                                        {parsedAction && (
+                                                            <div className="mt-4 pt-2 border-t border-neutral-800 flex items-center gap-1.5 opacity-70">
+                                                                <AlertTriangle size={12} className="text-amber-500" />
+                                                                <span className="text-[10px] text-amber-500 uppercase tracking-wider font-semibold">Strictly Educational. Not Financial Advice.</span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div className="prose prose-invert prose-sm">
-                                                        {n.contentText}
-                                                    </div>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         ) : (
                                             <div className="h-full flex items-center justify-center text-center px-4">
                                                 <p className="text-xs text-neutral-500 italic">

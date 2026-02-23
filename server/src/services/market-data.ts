@@ -1,36 +1,128 @@
 import { AlphaVantageProvider } from './providers/alphavantage';
 import { BinanceProvider } from './providers/binance';
 import { FinnhubService } from './finnhub';
+import { prisma } from './cache';
 
 export class MarketData {
 
     static async getQuote(symbol: string, assetType: 'STOCK' | 'CRYPTO') {
-        if (assetType === 'CRYPTO') {
-            return await BinanceProvider.getQuote(symbol);
-        } else {
-            // STOCK: 1) AV Primary, 2) Finnhub Secondary
-            try {
-                return await AlphaVantageProvider.getQuote(symbol);
-            } catch (errAV) {
-                console.warn(`[MarketData] AV failed for ${symbol} quote, falling back to Finnhub...`);
-                const fhQuote = await FinnhubService.getQuote(symbol);
-                if (!fhQuote || fhQuote.d === null) throw new Error('All providers failed for quote');
+        const cacheKey = `quote_${assetType}_${symbol}`;
+        let liveQuote = null;
 
-                return {
-                    symbol,
-                    assetType: 'STOCK',
-                    price: parseFloat(fhQuote.c),
-                    changeAbs: parseFloat(fhQuote.d),
-                    changePct: parseFloat(fhQuote.dp),
-                    ts: fhQuote.t,
-                    source: 'FINNHUB',
-                    isStale: false
-                };
+        try {
+            if (assetType === 'CRYPTO') {
+                liveQuote = await BinanceProvider.getQuote(symbol);
+            } else {
+                try {
+                    liveQuote = await AlphaVantageProvider.getQuote(symbol);
+                } catch (errAV) {
+                    const fhQuote = await FinnhubService.getQuote(symbol);
+                    if (!fhQuote || fhQuote.d === null) throw new Error('All providers failed');
+                    liveQuote = {
+                        symbol,
+                        assetType: 'STOCK',
+                        price: parseFloat(fhQuote.c),
+                        changeAbs: parseFloat(fhQuote.d),
+                        changePct: parseFloat(fhQuote.dp),
+                        ts: fhQuote.t,
+                        source: 'FINNHUB',
+                        isStale: false
+                    };
+                }
             }
+        } catch (e) {
+            console.warn(`[MarketData] Live quote failed for ${symbol}, attempting cache...`);
         }
+
+        if (liveQuote) {
+            // Save to cache
+            await prisma.cachedResponse.upsert({
+                where: { cacheKey },
+                update: { payloadJson: JSON.stringify(liveQuote), ts: new Date(), isStale: false },
+                create: { cacheKey, payloadJson: JSON.stringify(liveQuote), ttlSeconds: 300, source: liveQuote.source || 'UNKNOWN' }
+            });
+            return liveQuote;
+        }
+
+        // Offline Fallback
+        const cached = await prisma.cachedResponse.findUnique({ where: { cacheKey } });
+        if (cached) {
+            const parsed = JSON.parse(cached.payloadJson);
+            parsed.isStale = true;
+            return parsed;
+        }
+
+        throw new Error('Quote unavailable offline.');
     }
 
     static async getCandles(symbol: string, assetType: 'STOCK' | 'CRYPTO', rangeStr: string) {
+        // Ping the history warm queue to ensure we have long-term stats building
+        import('./history-queue').then(q => q.HistoryWarmQueue.enqueue(symbol, assetType, 'get_candles')).catch(() => { });
+
+        // Determine date cutoff based on rangeStr
+        const cutoff = new Date();
+        const mapDays: any = { '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730, '3y': 1095, '5y': 1825, 'all': 3650 };
+        const isIntraday = ['1d', '1w'].includes(rangeStr);
+        const days = mapDays[rangeStr] || 180;
+
+        if (!isIntraday) {
+            cutoff.setDate(cutoff.getDate() - days);
+            const cutoffDate = cutoff.toISOString().split('T')[0];
+
+            const rows = await prisma.priceHistory.findMany({
+                where: { symbol, assetType, date: { gte: cutoffDate } },
+                orderBy: { date: 'asc' }
+            });
+
+            const requiredTradingDays = days * 0.6; // approx accounting for weekends
+            if (rows.length >= requiredTradingDays) {
+                return {
+                    c: rows.map(r => r.close),
+                    h: rows.map(r => r.high),
+                    l: rows.map(r => r.low),
+                    o: rows.map(r => r.open),
+                    v: rows.map(r => r.volume),
+                    t: rows.map(r => Math.floor(new Date(r.date + 'T16:00:00Z').getTime() / 1000)),
+                    s: 'ok',
+                    isStale: false,
+                    fromCache: true
+                };
+            }
+
+            try {
+                const liveData = await this.fetchLiveCandles(symbol, assetType, rangeStr);
+                if (liveData && liveData.s === 'ok' && liveData.c.length > 0) {
+                    return { ...liveData, isStale: false, fromCache: false };
+                }
+            } catch (e) {
+                console.warn(`[MarketData] Failed to fetch live candles for ${symbol}, checking partial DB cache...`);
+            }
+
+            if (rows.length > 0) {
+                return {
+                    c: rows.map(r => r.close),
+                    h: rows.map(r => r.high),
+                    l: rows.map(r => r.low),
+                    o: rows.map(r => r.open),
+                    v: rows.map(r => r.volume),
+                    t: rows.map(r => Math.floor(new Date(r.date + 'T16:00:00Z').getTime() / 1000)),
+                    s: 'ok',
+                    isStale: true,
+                    fromCache: true,
+                    lowDataQuality: true
+                };
+            }
+        } else {
+            // Intraday (1d, 1w) usually comes live directly
+            try {
+                return await this.fetchLiveCandles(symbol, assetType, rangeStr);
+            } catch (e) { }
+        }
+
+        throw new Error('No historical data available and live fetch failed.');
+    }
+
+    static async fetchLiveCandles(symbol: string, assetType: 'STOCK' | 'CRYPTO', rangeStr: string) {
         if (assetType === 'CRYPTO') {
             // map range to binance interval
             const map: Record<string, { interval: string, limit: number }> = {

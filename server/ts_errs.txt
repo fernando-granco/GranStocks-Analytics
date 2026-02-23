@@ -1,0 +1,2 @@
+src/routes.ts(235,2): error TS1128: Declaration or statement expected.
+src/routes.ts(580,5): error TS1128: Declaration or statement expected.

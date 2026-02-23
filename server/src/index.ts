@@ -13,6 +13,7 @@ import demoRoutes from './routes/demo';
 import adminRoutes from './routes/admin';
 import universeRoutes from './routes/universes';
 import { DemoService } from './services/demo';
+import userRoutes from './routes/user';
 
 const server = fastify({ logger: true });
 
@@ -33,6 +34,7 @@ async function start() {
     server.register(authRoutes, { prefix: '/api/auth' }); // Public
     server.register(adminRoutes, { prefix: '/api/admin' }); // Auto-checks preValidation RequireAdmin inside
     server.register(universeRoutes, { prefix: '/api' }); // Registers /api/symbols and /api/universes
+    server.register(userRoutes, { prefix: '/api/user' });
     await registerRoutes(server); // Protected by preValidation locally
 
     // Client static serving (VPS specific deployment constraint)
@@ -51,6 +53,32 @@ async function start() {
     });
 
     try {
+        if (process.env.NODE_ENV === 'production') {
+            const jwt = process.env.JWT_SECRET;
+            const enc = process.env.ENCRYPTION_MASTER_KEY;
+            const origin = process.env.APP_ORIGIN;
+            const cookie = process.env.COOKIE_SECRET;
+
+            if (!origin || origin.includes('localhost')) {
+                console.warn("WARNING: APP_ORIGIN looks like localhost in production.");
+            }
+
+            if (!jwt || jwt === 'supersecretjwt_default_dev_only' || jwt.length < 16) {
+                console.error("FATAL: Insecure JWT_SECRET in production.");
+                process.exit(1);
+            }
+
+            if (!cookie || cookie === 'supersecretcookie_default_dev_only' || cookie.length < 16) {
+                console.error("FATAL: Insecure COOKIE_SECRET in production.");
+                process.exit(1);
+            }
+
+            if (!enc || enc.length !== 32) {
+                console.error("FATAL: ENCRYPTION_MASTER_KEY must be exactly 32 chars in production.");
+                process.exit(1);
+            }
+        }
+
         // High-Concurrency SQLite PRAGMAS
         await prisma.$queryRawUnsafe(`PRAGMA journal_mode = WAL;`);
         await prisma.$queryRawUnsafe(`PRAGMA busy_timeout = 5000;`);

@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import cookie from '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import { FastifyRequest, FastifyReply } from 'fastify';
+import { prisma } from '../services/cache';
 
 export default fp(async (fastify) => {
     // Register cookie plugin
@@ -23,8 +24,22 @@ export default fp(async (fastify) => {
     fastify.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
         try {
             await request.jwtVerify();
+            const tokenUser = request.user as { id: string };
+            const u = await prisma.user.findUnique({ where: { id: tokenUser.id } });
+
+            if (!u) {
+                return reply.status(401).send({ error: 'Unauthorized: User not found' });
+            }
+            if (u.status === 'BANNED') {
+                return reply.status(403).send({ error: 'Forbidden: Account is banned' });
+            }
+            if (u.mustChangePassword && !request.url.startsWith('/api/auth')) {
+                return reply.status(403).send({ error: 'Forbidden: Password change required', mustChangePassword: true });
+            }
+
+            request.user = { id: u.id, role: u.role };
         } catch (err) {
-            reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
+            return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
         }
     });
 
@@ -32,12 +47,19 @@ export default fp(async (fastify) => {
     fastify.decorate('requireAdmin', async function (request: FastifyRequest, reply: FastifyReply) {
         try {
             await request.jwtVerify();
-            const user = request.user as { role: string };
-            if (user.role !== 'ADMIN') {
-                reply.status(403).send({ error: 'Forbidden: Admin access only' });
+            const tokenUser = request.user as { id: string };
+            const u = await prisma.user.findUnique({ where: { id: tokenUser.id } });
+
+            if (!u) {
+                return reply.status(401).send({ error: 'Unauthorized: User not found' });
             }
+            if (u.role !== 'ADMIN') {
+                return reply.status(403).send({ error: 'Forbidden: Admin access only' });
+            }
+
+            request.user = { id: u.id, role: u.role };
         } catch (err) {
-            reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
+            return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
         }
     });
 });

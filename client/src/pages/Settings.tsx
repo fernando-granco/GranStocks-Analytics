@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Trash2, Globe } from 'lucide-react';
-import { usePreferences } from '../context/PreferencesContext';
+import { Trash2 } from 'lucide-react';
+import { AccountProfile } from '../components/AccountProfile';
 
 export default function Settings() {
     const [configName, setConfigName] = useState('');
@@ -9,8 +9,18 @@ export default function Settings() {
     const [configApiKey, setConfigApiKey] = useState('');
     const [configModel, setConfigModel] = useState('');
     const [configBaseUrl, setConfigBaseUrl] = useState('');
-    const { timezone, setTimezone } = usePreferences();
     const queryClient = useQueryClient();
+
+    const [analysisMode, setAnalysisMode] = useState<'BASIC' | 'ADVANCED'>('BASIC');
+    const [selectedRiskProfile, setSelectedRiskProfile] = useState('CONSERVATIVE');
+    const [analysisConfigJson, setAnalysisConfigJson] = useState(JSON.stringify({
+        screener: { volatilityThreshold: 40, drawdownThreshold: 20 },
+        predict: { rsiOverbought: 70, rsiOversold: 30, highVolatilityThreshold: 50, severeDrawdownThreshold: 0.3 }
+    }, null, 2));
+
+    const [promptRole, setPromptRole] = useState('CONSENSUS');
+    const [promptText, setPromptText] = useState('Please review this deterministic market data for {{ASSET_SYMBOL}} on {{DATE}}:\n\n{{EVIDENCE_PACK}}\n\nProvide a short, 2-3 sentence financial analysis.');
+    const [promptOutputMode, setPromptOutputMode] = useState('TEXT_ONLY');
 
     // LLM Configs Query
     const { data: configs } = useQuery({
@@ -52,11 +62,90 @@ export default function Settings() {
             queryClient.invalidateQueries({ queryKey: ['llmConfigs'] });
         }
     });
+
+    const { data: analysisConfigs } = useQuery({
+        queryKey: ['analysisConfigs'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/analysis');
+            if (!res.ok) return [];
+            return res.json();
+        }
+    });
+
+    const saveAnalysisMutation = useMutation({
+        mutationFn: async () => {
+            let finalizedJson = analysisConfigJson;
+            let name = 'Custom Advanced';
+            if (analysisMode === 'BASIC') {
+                if (selectedRiskProfile === 'CONSERVATIVE') {
+                    name = 'Conservative Profile';
+                    finalizedJson = JSON.stringify({
+                        screener: { volatilityThreshold: 20, drawdownThreshold: 10, volatilityPenalty: 25, drawdownPenalty: 30, trendStrengthReward: 2, trendStrengthPenalty: 10 },
+                        predict: { rsiOverbought: 65, rsiOversold: 35, highVolatilityThreshold: 30, severeDrawdownThreshold: 0.15 }
+                    });
+                } else if (selectedRiskProfile === 'AGGRESSIVE') {
+                    name = 'Aggressive Profile';
+                    finalizedJson = JSON.stringify({
+                        screener: { volatilityThreshold: 80, drawdownThreshold: 40, volatilityPenalty: 5, drawdownPenalty: 5, trendStrengthReward: 10, trendStrengthPenalty: 2 },
+                        predict: { rsiOverbought: 85, rsiOversold: 20, highVolatilityThreshold: 80, severeDrawdownThreshold: 0.5 }
+                    });
+                }
+            }
+
+            const res = await fetch('/api/settings/analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    assetTypeScope: 'BOTH',
+                    configJson: finalizedJson,
+                    isActive: true
+                })
+            });
+            if (!res.ok) throw new Error('Failed to save analysis config');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['analysisConfigs'] });
+            alert('Analysis Configuration Saved Successfully!');
+        }
+    });
+
+    const { data: promptConfigs } = useQuery({
+        queryKey: ['promptConfigs'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/prompts');
+            if (!res.ok) return [];
+            return res.json();
+        }
+    });
+
+    const savePromptMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/settings/prompts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    role: promptRole,
+                    templateText: promptText,
+                    outputMode: promptOutputMode,
+                    enabled: true
+                })
+            });
+            if (!res.ok) throw new Error('Failed to save prompt config');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['promptConfigs'] });
+            alert('Prompt Template Saved Successfully!');
+        }
+    });
+
     return (
         <div className="max-w-2xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div>
                 <h1 className="text-3xl font-bold mb-6">Settings</h1>
             </div>
+
+            <AccountProfile />
 
             <div>
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
@@ -124,54 +213,119 @@ export default function Settings() {
             </div>
 
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2"><Globe size={20} className="text-indigo-400" /> General Settings</h3>
-                <div>
-                    <label className="block text-sm font-medium text-neutral-400 mb-2">Display Timezone</label>
-                    <select
-                        value={timezone}
-                        onChange={(e) => setTimezone(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors"
-                    >
-                        <optgroup label="North America">
-                            <option value="America/Toronto">Eastern Time — Toronto / New York</option>
-                            <option value="America/Chicago">Central Time — Chicago</option>
-                            <option value="America/Denver">Mountain Time — Denver</option>
-                            <option value="America/Los_Angeles">Pacific Time — Los Angeles / Vancouver</option>
-                            <option value="America/Anchorage">Alaska Time — Anchorage</option>
-                            <option value="Pacific/Honolulu">Hawaii — Honolulu</option>
-                            <option value="America/Mexico_City">Mexico City</option>
-                            <option value="America/Sao_Paulo">São Paulo</option>
-                            <option value="America/Argentina/Buenos_Aires">Buenos Aires</option>
-                        </optgroup>
-                        <optgroup label="Europe">
-                            <option value="UTC">UTC</option>
-                            <option value="Europe/London">London (GMT/BST)</option>
-                            <option value="Europe/Paris">Paris / Berlin / Madrid / Rome (CET)</option>
-                            <option value="Europe/Helsinki">Helsinki / Kyiv (EET)</option>
-                            <option value="Europe/Moscow">Moscow</option>
-                            <option value="Europe/Istanbul">Istanbul</option>
-                        </optgroup>
-                        <optgroup label="Asia / Pacific">
-                            <option value="Asia/Dubai">Dubai (GST)</option>
-                            <option value="Asia/Karachi">Karachi (PKT)</option>
-                            <option value="Asia/Kolkata">Mumbai / Kolkata (IST)</option>
-                            <option value="Asia/Dhaka">Dhaka (BST)</option>
-                            <option value="Asia/Bangkok">Bangkok / Jakarta (ICT)</option>
-                            <option value="Asia/Singapore">Singapore / Hong Kong / Kuala Lumpur</option>
-                            <option value="Asia/Shanghai">Beijing / Shanghai (CST)</option>
-                            <option value="Asia/Tokyo">Tokyo (JST)</option>
-                            <option value="Australia/Sydney">Sydney (AEST)</option>
-                            <option value="Pacific/Auckland">Auckland (NZST)</option>
-                        </optgroup>
-                        <optgroup label="Africa">
-                            <option value="Africa/Lagos">Lagos / Nairobi (WAT)</option>
-                            <option value="Africa/Nairobi">Nairobi (EAT)</option>
-                            <option value="Africa/Johannesburg">Johannesburg (SAST)</option>
-                            <option value="Africa/Cairo">Cairo (EET)</option>
-                        </optgroup>
-                    </select>
-                    <p className="text-xs text-neutral-500 mt-2">Affects chart timestamps and daily job scheduling display.</p>
+                <h3 className="text-xl font-semibold mb-4">Analysis Settings</h3>
+                <p className="text-neutral-500 text-sm mb-6">Customize the deterministic algorithms for the Screener and the AI Evidence Packs.</p>
+
+                <div className="flex border-b border-neutral-800 mb-6">
+                    <button onClick={() => setAnalysisMode('BASIC')} className={`px-4 py-2 font-medium ${analysisMode === 'BASIC' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300'}`}>Basic</button>
+                    <button onClick={() => setAnalysisMode('ADVANCED')} className={`px-4 py-2 font-medium ${analysisMode === 'ADVANCED' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300'}`}>Advanced</button>
                 </div>
+
+                {analysisMode === 'BASIC' ? (
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Select a predefined Risk Profile:</label>
+                        <select value={selectedRiskProfile} onChange={e => setSelectedRiskProfile(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500">
+                            <option value="CONSERVATIVE">Conservative (Low Volatility, Tight Drawdowns)</option>
+                            <option value="AGGRESSIVE">Aggressive (High Volatility, High Reward Focus)</option>
+                        </select>
+                        <p className="text-xs text-neutral-500">This modifies backend weights for RSI thresholds, Moving Averages, and Volatility penalties.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Raw JSON Configuration:</label>
+                        <textarea
+                            value={analysisConfigJson}
+                            onChange={e => setAnalysisConfigJson(e.target.value)}
+                            className="w-full h-48 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-indigo-500 resize-none"
+                            placeholder="Enter valid JSON for weights..."
+                        />
+                        <p className="text-xs text-neutral-500">Available keys: screener (volatilityThreshold, drawdownThreshold, etc), predict (rsiOverbought, rsiOversold, etc).</p>
+                    </div>
+                )}
+
+                <button
+                    onClick={() => saveAnalysisMutation.mutate()}
+                    disabled={saveAnalysisMutation.isPending}
+                    className="mt-6 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 font-medium text-white rounded-lg w-full transition-colors"
+                >
+                    {saveAnalysisMutation.isPending ? 'Applying...' : 'Apply Analysis Config'}
+                </button>
+
+                {analysisConfigs && analysisConfigs.length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-neutral-800">
+                        <h4 className="text-sm font-medium text-neutral-400 mb-3">Active Profile:</h4>
+                        {analysisConfigs.filter((c: any) => c.isActive).map((c: any) => (
+                            <div key={c.id} className="bg-neutral-950/50 p-3 rounded border border-indigo-500/30">
+                                <span className="text-indigo-400 text-sm font-medium">{c.name}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+                <h3 className="text-xl font-semibold mb-4">AI Prompts <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded ml-2 uppercase">Advanced</span></h3>
+                <p className="text-neutral-500 text-sm mb-6">Override the default LLM prompts. Use <code>{`{{EVIDENCE_PACK}}`}</code> or <code>{`{{ASSET_SYMBOL}}`}</code> to inject data.</p>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Target Role / Context:</label>
+                        <select value={promptRole} onChange={e => setPromptRole(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                            <option value="CONSENSUS">Consensus / Daily Snapshot</option>
+                            <option value="SCREENER">Screener Narrative</option>
+                            <option value="RISK">Risk Assessment</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Prompt Template:</label>
+                        <textarea
+                            value={promptText}
+                            onChange={e => setPromptText(e.target.value)}
+                            className="w-full h-32 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                        />
+                    </div>
+
+                    <div className="bg-neutral-950 p-4 border border-neutral-800 rounded-lg">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={promptOutputMode === 'ACTION_LABELS'}
+                                onChange={e => setPromptOutputMode(e.target.checked ? 'ACTION_LABELS' : 'TEXT_ONLY')}
+                                className="w-5 h-5 rounded border-neutral-700 text-indigo-500 focus:ring-indigo-500 bg-neutral-900"
+                            />
+                            <span className="font-medium">Enable Action Labels (BUY / WAIT / SELL)</span>
+                        </label>
+                        <p className="text-xs text-neutral-500 mt-2 pl-8">
+                            <b>Disclaimer:</b> If enabled, the LLM will be forced to output simulated trading signals. This is STRICTLY for educational/demonstrational purposes and is NOT financial advice. Use at your own risk.
+                        </p>
+                    </div>
+                </div>
+
+                <button
+                    onClick={() => savePromptMutation.mutate()}
+                    disabled={savePromptMutation.isPending}
+                    className="mt-6 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 font-medium text-white rounded-lg w-full transition-colors"
+                >
+                    {savePromptMutation.isPending ? 'Saving...' : 'Save Prompt Template'}
+                </button>
+
+                {promptConfigs && promptConfigs.length > 0 && (
+                    <div className="mt-8 pt-6 border-t border-neutral-800">
+                        <h4 className="text-sm font-medium text-neutral-400 mb-3">Active Prompts:</h4>
+                        {promptConfigs.filter((c: any) => c.enabled).map((c: any) => (
+                            <div key={c.id} className="bg-neutral-950/50 p-3 rounded border border-indigo-500/30 flex justify-between items-center mb-2">
+                                <div>
+                                    <span className="text-indigo-400 text-sm font-medium block">{c.role}</span>
+                                    <span className="text-xs text-neutral-500 font-mono inline-block truncate max-w-[200px]">{c.templateText}</span>
+                                </div>
+                                {c.outputMode === 'ACTION_LABELS' && (
+                                    <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded uppercase">Action Labels ON</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
         </div>

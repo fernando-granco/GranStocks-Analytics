@@ -5,31 +5,38 @@ import { DailyCandles } from './analysis';
 export class PriceHistoryService {
 
     /**
-     * Backfill 2 years of daily candles for a symbol.
+     * Backfill 3 years of daily candles for a symbol.
      * Safe to call multiple times — uses upsert, so no duplicates.
      */
     static async backfillSymbol(symbol: string, assetType: 'STOCK' | 'CRYPTO'): Promise<number> {
-        console.log(`[PriceHistory] Backfilling ${symbol} (${assetType})...`);
+        console.log(`[PriceHistory] Backfilling 3-years ${symbol} (${assetType})...`);
 
-        const candles = await MarketData.getCandles(symbol, assetType, '2y');
+        // We explicitly use fetchLiveCandles to bypass local cache
+        const candles = await MarketData.fetchLiveCandles(symbol, assetType, '3y');
         if (!candles || candles.s !== 'ok' || !candles.c || candles.c.length === 0) {
             console.warn(`[PriceHistory] No data returned for ${symbol}`);
-            return 0;
+            throw new Error('Provider returned empty data');
         }
 
         let inserted = 0;
+        let earliestDate = '9999-99-99';
+        let latestDate = '0000-00-00';
+
+        const txs = [];
         for (let i = 0; i < candles.t.length; i++) {
             const date = new Date(candles.t[i] * 1000).toISOString().split('T')[0];
-            try {
-                await prisma.priceHistory.upsert({
-                    where: { symbol_date: { symbol, date } },
+            if (date < earliestDate) earliestDate = date;
+            if (date > latestDate) latestDate = date;
+
+            txs.push(
+                prisma.priceHistory.upsert({
+                    where: { assetType_symbol_date: { assetType, symbol, date } },
                     update: {
                         open: candles.o[i],
                         high: candles.h[i],
                         low: candles.l[i],
                         close: candles.c[i],
-                        volume: candles.v[i],
-                        assetType
+                        volume: candles.v[i]
                     },
                     create: {
                         symbol,
@@ -41,12 +48,27 @@ export class PriceHistoryService {
                         close: candles.c[i],
                         volume: candles.v[i]
                     }
-                });
-                inserted++;
-            } catch (e) {
-                // Skip individual rows that fail
-            }
+                })
+            );
+            inserted++;
         }
+
+        // Execute sequentially to avoid lock issues
+        for (const tx of txs) {
+            try { await tx; } catch (e) { }
+        }
+
+        // Update the SymbolCacheState
+        await prisma.symbolCacheState.update({
+            where: { assetType_symbol: { assetType, symbol } },
+            data: {
+                status: 'READY',
+                earliestDate: earliestDate !== '9999-99-99' ? earliestDate : null,
+                latestDate: latestDate !== '0000-00-00' ? latestDate : null,
+                barsCount: inserted,
+                lastSuccessAt: new Date()
+            }
+        });
 
         console.log(`[PriceHistory] Stored ${inserted} candles for ${symbol}`);
         return inserted;
@@ -64,7 +86,7 @@ export class PriceHistoryService {
             const i = candles.c.length - 1;
             const date = new Date(candles.t[i] * 1000).toISOString().split('T')[0];
             await prisma.priceHistory.upsert({
-                where: { symbol_date: { symbol, date } },
+                where: { assetType_symbol_date: { assetType, symbol, date } },
                 update: {
                     open: candles.o[i],
                     high: candles.h[i],
@@ -90,43 +112,26 @@ export class PriceHistoryService {
     }
 
     /**
-     * Read cached candles from DB and return in DailyCandles format.
-     * Falls back to live API if the cache is empty.
+     * Deprecated: Use MarketData.getCandles directly.
+     * Proxies to MarketData cache-first implementation.
      */
     static async getCandles(symbol: string, assetType: 'STOCK' | 'CRYPTO', days: number): Promise<DailyCandles | null> {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - days);
-        const cutoffDate = cutoff.toISOString().split('T')[0];
+        let rangeStr = '6m';
+        if (days >= 3650) rangeStr = 'all';
+        else if (days >= 1825) rangeStr = '5y';
+        else if (days >= 1095) rangeStr = '3y';
+        else if (days >= 730) rangeStr = '2y';
+        else if (days >= 365) rangeStr = '1y';
+        else if (days >= 180) rangeStr = '6m';
+        else if (days >= 90) rangeStr = '3m';
+        else if (days >= 30) rangeStr = '1m';
+        else if (days >= 7) rangeStr = '1w';
 
-        const rows = await prisma.priceHistory.findMany({
-            where: { symbol, date: { gte: cutoffDate } },
-            orderBy: { date: 'asc' }
-        });
-
-        if (rows.length < 20) {
-            // Cache miss — fall back to live API and opportunistically cache
-            console.warn(`[PriceHistory] Cache miss for ${symbol}, falling back to live API`);
-            try {
-                const candles = await MarketData.getCandles(symbol, assetType, days >= 365 ? '2y' : days >= 180 ? '6m' : '3m');
-                if (candles && candles.s === 'ok' && candles.c?.length > 0) {
-                    // Store in background (don't await — don't block the response)
-                    this.backfillSymbol(symbol, assetType).catch(() => { });
-                    return candles;
-                }
-            } catch (e) { /* ignore */ }
+        try {
+            return await MarketData.getCandles(symbol, assetType, rangeStr) as unknown as DailyCandles;
+        } catch (e) {
             return null;
         }
-
-        // Convert to DailyCandles format
-        return {
-            c: rows.map(r => r.close),
-            h: rows.map(r => r.high),
-            l: rows.map(r => r.low),
-            o: rows.map(r => r.open),
-            v: rows.map(r => r.volume),
-            t: rows.map(r => Math.floor(new Date(r.date + 'T16:00:00Z').getTime() / 1000)),
-            s: 'ok'
-        } as DailyCandles & { s: string };
     }
 
     /**

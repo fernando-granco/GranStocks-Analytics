@@ -97,7 +97,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             reply.clearCookie('token', { path: '/' });
             return reply.status(403).send({ error: 'Account suspended.' });
         }
-        return reply.send({ id: user.id, email: user.email, role: user.role, status: user.status, mustChangePassword: user.mustChangePassword });
+        return reply.send({ id: user.id, email: user.email, fullName: user.fullName, role: user.role, status: user.status, mustChangePassword: user.mustChangePassword });
     });
 
     // --- Prod Skeleton Endpoints ---

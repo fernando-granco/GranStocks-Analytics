@@ -215,6 +215,12 @@ export default async function universeRoutes(server: FastifyInstance) {
         if (criteria.industry) results = results.filter(a => a.industry.toLowerCase() === criteria.industry.toLowerCase());
         if (criteria.exchange) results = results.filter(a => a.exchange.toLowerCase() === criteria.exchange.toLowerCase());
 
+        setImmediate(() => {
+            import('../services/history-queue').then(q => {
+                results.forEach((r: any) => q.HistoryWarmQueue.enqueue(r.symbol, r.assetType || 'STOCK', 'universe_resolve').catch(() => { }));
+            }).catch(() => { });
+        });
+
         return { universe, assets: results };
     });
 

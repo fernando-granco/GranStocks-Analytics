@@ -3,6 +3,7 @@ import { MarketData } from './market-data';
 import { PriceHistoryService } from './price-history';
 import * as fs from 'fs';
 import * as path from 'path';
+import { AnalysisConfigPayload, DEFAULT_ANALYSIS_CONFIG } from './config';
 
 export class ScreenerService {
 
@@ -34,9 +35,9 @@ export class ScreenerService {
                         const { score, metrics, flags } = this.calculateScreenerMetrics(data.c, data.h, data.l);
 
                         await prisma.screenerSnapshot.upsert({
-                            where: { dateHour_universeType_universeName_symbol: { dateHour: date, universeType: assetType, universeName: universe, symbol } },
+                            where: { date_universeType_universeName_symbol: { date, universeType: assetType, universeName: universe, symbol } },
                             update: { score, metricsJson: JSON.stringify(metrics), riskFlagsJson: JSON.stringify(flags) },
-                            create: { dateHour: date, universeType: assetType, universeName: universe, symbol, score, metricsJson: JSON.stringify(metrics), riskFlagsJson: JSON.stringify(flags) }
+                            create: { date, universeType: assetType, universeName: universe, symbol, score, metricsJson: JSON.stringify(metrics), riskFlagsJson: JSON.stringify(flags) }
                         });
                     }
                 } catch (err: any) {
@@ -76,26 +77,27 @@ export class ScreenerService {
         }
     }
 
-    private static calculateScreenerMetrics(closes: number[], highs: number[], lows: number[]) {
-        if (closes.length < 20) return { score: 0, metrics: {}, flags: ['Insufficient Data'] };
+    private static calculateScreenerMetrics(closes: number[], highs: number[], lows: number[], config: AnalysisConfigPayload['screener'] = DEFAULT_ANALYSIS_CONFIG.screener) {
+        if (!closes || closes.length < 20) return { score: 0, metrics: {}, flags: ['Insufficient Data'] };
 
-        const startPrice = closes[0];
-        const endPrice = closes[closes.length - 1];
+        let startPrice = closes[0] || 0.0001; // Prevent divide by zero
+        const endPrice = closes[closes.length - 1] || 0;
         const return6m = ((endPrice - startPrice) / startPrice) * 100;
 
-        let maxPrice = highs[0];
+        let maxPrice = highs[0] || 0.0001;
         let maxDrawdown = 0;
         let diffSums = 0;
         let downsideDiffSums = 0;
         let downsideCount = 0;
 
         for (let i = 0; i < closes.length; i++) {
-            if (highs[i] > maxPrice) maxPrice = highs[i];
-            const drawdown = ((maxPrice - lows[i]) / maxPrice) * 100;
+            if (highs[i] > maxPrice) maxPrice = highs[i] || 0.0001;
+            const drawdown = ((maxPrice - (lows[i] || 0)) / maxPrice) * 100;
             if (drawdown > maxDrawdown) maxDrawdown = drawdown;
 
             if (i > 0) {
-                const ret = (closes[i] - closes[i - 1]) / closes[i - 1];
+                const prevClose = closes[i - 1] || 0.0001;
+                const ret = (closes[i] - prevClose) / prevClose;
                 diffSums += ret * ret;
                 if (ret < 0) {
                     downsideDiffSums += ret * ret;
@@ -104,38 +106,53 @@ export class ScreenerService {
             }
         }
 
-        const volatility = Math.sqrt(diffSums / (closes.length - 1)) * Math.sqrt(252) * 100; // Annualized approx
+        const denom = Math.max(1, closes.length - 1);
+        let volatility = Math.sqrt(diffSums / denom) * Math.sqrt(252) * 100;
+        if (isNaN(volatility)) volatility = 0;
 
         const downsideVariance = downsideCount > 0 ? downsideDiffSums / downsideCount : 0;
-        const downsideVolatility = Math.sqrt(downsideVariance) * Math.sqrt(252) * 100;
+        let downsideVolatility = Math.sqrt(downsideVariance) * Math.sqrt(252) * 100;
+        if (isNaN(downsideVolatility)) downsideVolatility = 0;
 
         const rfr = 4.0; // 4% proxy risk-free rate
-        const sharpeRatio = volatility > 0 ? (return6m - rfr) / volatility : 0;
-        const sortinoRatio = downsideVolatility > 0 ? (return6m - rfr) / downsideVolatility : sharpeRatio;
+        let sharpeRatio = volatility > 0 ? (return6m - rfr) / volatility : 0;
+        let sortinoRatio = downsideVolatility > 0 ? (return6m - rfr) / downsideVolatility : sharpeRatio;
+
+        if (isNaN(sharpeRatio) || !isFinite(sharpeRatio)) sharpeRatio = 0;
+        if (isNaN(sortinoRatio) || !isFinite(sortinoRatio)) sortinoRatio = 0;
 
         // Simple MA trend check
-        const ma20 = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-        const trendStrength = ((endPrice - ma20) / ma20) * 100;
+        const ma20denom = closes.slice(-20).reduce((a, b) => a + b, 0) / 20 || 0.0001;
+        let trendStrength = ((endPrice - ma20denom) / ma20denom) * 100;
+        if (isNaN(trendStrength) || !isFinite(trendStrength)) trendStrength = 0;
 
         // Arbitrary scoring logic for "Best Candidates" (high return, low vol, low drawdown, positive trend)
         let score = 50
             + (return6m > 0 ? Math.min(return6m, 50) : Math.max(return6m, -50))
-            - (volatility > 40 ? 10 : 0)
-            - (maxDrawdown > 20 ? 15 : 0)
-            + (trendStrength > 0 ? 5 : -5)
-            + (sharpeRatio > 1 ? 5 : 0) // Reward good risk-adjusted returns
-            + (sortinoRatio > 1 ? 5 : 0);
+            - (volatility > config.volatilityThreshold ? config.volatilityPenalty : 0)
+            - (maxDrawdown > config.drawdownThreshold ? config.drawdownPenalty : 0)
+            + (trendStrength > 0 ? config.trendStrengthReward : -config.trendStrengthPenalty)
+            + (sharpeRatio > 1 ? config.sharpeReward : 0) // Reward good risk-adjusted returns
+            + (sortinoRatio > 1 ? config.sortinoReward : 0);
 
-        score = Math.max(0, Math.min(100, score));
+        score = isNaN(score) ? 0 : Math.max(0, Math.min(100, score));
 
         const flags: string[] = [];
-        if (volatility > 50) flags.push('High Volatility');
-        if (maxDrawdown > 30) flags.push('Severe Drawdown Risk');
+        if (closes.length < 90) flags.push('Limited History');
+        if (volatility > config.volatilityThreshold) flags.push('High Volatility');
+        if (maxDrawdown > config.drawdownThreshold) flags.push('Severe Drawdown Risk');
         if (trendStrength < -5) flags.push('Strong Downtrend');
 
         return {
             score,
-            metrics: { return6m, volatility, maxDrawdown, trendStrength, sharpeRatio, sortinoRatio },
+            metrics: {
+                return6m: isNaN(return6m) ? 0 : return6m,
+                volatility,
+                maxDrawdown: isNaN(maxDrawdown) ? 0 : maxDrawdown,
+                trendStrength,
+                sharpeRatio,
+                sortinoRatio
+            },
             flags
         };
     }

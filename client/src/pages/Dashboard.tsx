@@ -96,6 +96,9 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
 
     return (
         <div className="space-y-6">
+            <div className="mb-2">
+                <p className="text-neutral-400 font-medium">Welcome, {user?.fullName || user?.email}</p>
+            </div>
             <div className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-bold tracking-tight">Market Overview</h1>
                 {user?.role === 'ADMIN' && (

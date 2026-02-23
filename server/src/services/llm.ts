@@ -1,5 +1,33 @@
 import { decryptText } from '../utils/crypto';
 import { prisma } from './cache';
+import { URL } from 'url';
+
+export function validateBaseUrl(urlStr: string | null | undefined): string | undefined {
+    if (!urlStr) return undefined;
+    let url: URL;
+    try {
+        url = new URL(urlStr);
+    } catch {
+        throw new Error('Invalid Base URL format');
+    }
+
+    if (url.protocol !== 'https:') {
+        throw new Error('Base URL must use HTTPS');
+    }
+
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+        throw new Error('Base URL cannot resolve to localhost');
+    }
+    if (hostname.startsWith('10.') || hostname.startsWith('192.168.') || hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
+        throw new Error('Base URL cannot resolve to private IP addresses');
+    }
+    if (hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+        throw new Error('Base URL cannot resolve to internal network domains');
+    }
+
+    return urlStr.replace(/\/$/, "");
+}
 
 export interface LLMProvider {
     generateNarrative(prompt: string): Promise<string>;
@@ -103,7 +131,7 @@ export class LLMService {
         // Dynamic quotas: max 10 requests per day per provider config
         const today = new Date().toISOString().split('T')[0];
         const usageCount = await prisma.aiNarrative.count({
-            where: { llmConfigId: configId, dateHour: today }
+            where: { llmConfigId: configId, date: today }
         });
 
         if (usageCount >= 10) {
@@ -116,15 +144,15 @@ export class LLMService {
             case 'OPENAI':
                 return new OpenAIProvider(apiKey, config.model);
             case 'DEEPSEEK':
-                return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? 'https://api.deepseek.com/v1');
+                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.deepseek.com/v1');
             case 'OPENAI_COMPAT':
-                return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? undefined);
+                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl));
             case 'GROQ':
-                return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? 'https://api.groq.com/openai/v1');
+                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.groq.com/openai/v1');
             case 'TOGETHER':
-                return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? 'https://api.together.xyz/v1');
+                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.together.xyz/v1');
             case 'XAI':
-                return new OpenAIProvider(apiKey, config.model, config.baseUrl ?? 'https://api.x.ai/v1');
+                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.x.ai/v1');
             case 'ANTHROPIC':
                 return new AnthropicProvider(apiKey, config.model);
             case 'GEMINI':
@@ -134,11 +162,60 @@ export class LLMService {
         }
     }
 
-    static async generateNarrative(configId: string, symbol: string | null, date: string, promptDataJson: string): Promise<string> {
+    static async generateNarrative(configId: string, symbol: string | null, date: string, promptDataJson: string, role: string = 'CONSENSUS'): Promise<string> {
         const provider = await getProviderInstance(configId);
-        const prompt = `Please review this deterministic market data for ${symbol ?? 'your daily portfolio summary'} on ${date}:\n\n${promptDataJson}\n\nProvide a short, 2-3 sentence financial analysis.`;
 
-        const narrative = await provider.generateNarrative(prompt);
+        const config = await prisma.userLLMConfig.findUniqueOrThrow({ where: { id: configId } });
+        const promptTemplate = await prisma.promptTemplate.findFirst({
+            where: { userId: config.userId, role, enabled: true, scope: 'GLOBAL' }
+        });
+
+        let prompt = `Please review this deterministic market data for ${symbol ?? 'your daily portfolio summary'} on ${date}:\n\n${promptDataJson}\n\nProvide a short, 2-3 sentence financial analysis.`;
+        let isJsonMode = false;
+
+        if (promptTemplate) {
+            prompt = promptTemplate.templateText
+                .replace(/{{EVIDENCE_PACK}}/g, promptDataJson)
+                .replace(/{{EVIDENCE_PACK_JSON}}/g, promptDataJson)
+                .replace(/{{ASSET_SYMBOL}}/g, symbol ?? 'Portfolio')
+                .replace(/{{DATE}}/g, date);
+
+            isJsonMode = promptTemplate.outputMode === 'ACTION_LABELS';
+        }
+
+        if (isJsonMode) {
+            prompt += '\n\nYou MUST return ONLY valid JSON in this exact structure: { "action": "BUY" | "WAIT" | "SELL", "narrative": "your strictly educational analysis" }';
+        }
+
+        let narrative = await provider.generateNarrative(prompt);
+
+        // Strip out any trailing simulation text for JSON mode
+        const simulationText = "\n\n(AI-generated commentary - simulation only)";
+        if (isJsonMode && narrative.endsWith(simulationText)) {
+            narrative = narrative.substring(0, narrative.length - simulationText.length);
+        }
+
+        if (isJsonMode) {
+            let cleanNarrative = narrative.replace(/```json/g, '').replace(/```/g, '').trim();
+            try {
+                JSON.parse(cleanNarrative);
+                return cleanNarrative;
+            } catch (e) {
+                // Repair
+                const repairPrompt = `The following JSON is invalid. Fix it to be exactly { "action": "BUY" | "WAIT" | "SELL", "narrative": "..." } with valid JSON syntax. Return ONLY the JSON.\n\n${cleanNarrative}`;
+                let repaired = await provider.generateNarrative(repairPrompt);
+                if (repaired.endsWith(simulationText)) repaired = repaired.substring(0, repaired.length - simulationText.length);
+                repaired = repaired.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                try {
+                    JSON.parse(repaired);
+                    return repaired;
+                } catch (e2) {
+                    return JSON.stringify({ action: "WAIT", narrative: "Failed to parse LLM Action Label response. Raw output: " + cleanNarrative });
+                }
+            }
+        }
+
         return narrative;
     }
 }

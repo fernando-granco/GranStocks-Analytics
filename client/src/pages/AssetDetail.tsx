@@ -113,12 +113,12 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
     }, [isLoadingSummary, symbol, assetType]);
 
     // Prepare chart data format
-    const chartData = summary?.history?.c ? summary.history.t.map((timestamp: number, idx: number) => {
+    const chartData = summary?.candles?.c ? summary.candles.t.map((timestamp: number, idx: number) => {
         const dt = new Date(timestamp * 1000);
         return {
             date: dt.toLocaleDateString(),
-            price: summary.history.c[idx],
-            volume: summary.history.v?.[idx] || 0
+            price: summary.candles.c[idx],
+            volume: summary.candles.v?.[idx] || 0
         };
     }) : [];
 
@@ -165,7 +165,7 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                         <div className="lg:col-span-2 space-y-6">
 
                             {/* Tabs */}
-                            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar border-b border-neutral-800">
+                            <div className="flex flex-wrap gap-2 pb-2 border-b border-neutral-800">
                                 <TabButton active={activeTab === 'CHART'} onClick={() => setActiveTab('CHART')} icon={<BarChart3 size={16} />}>Price Action</TabButton>
                                 <TabButton active={activeTab === 'TECHNICAL'} onClick={() => setActiveTab('TECHNICAL')} icon={<Activity size={16} />}>Technicals</TabButton>
                                 {assetType === 'STOCK' && (

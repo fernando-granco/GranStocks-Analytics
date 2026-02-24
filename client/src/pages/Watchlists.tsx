@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { usePreferences } from '../context/PreferencesContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Save, Trash2, ShieldAlert, Star, Layers, X } from 'lucide-react';
+import { PortfolioTracker } from '../components/PortfolioTracker';
 
 export default function Watchlists() {
     const { mode } = usePreferences();
@@ -286,6 +287,14 @@ export default function Watchlists() {
                                 ))
                             )}
                         </div>
+                    </div>
+
+                    <div className="mt-8">
+                        <PortfolioTracker />
+                    </div>
+
+                    <div className="mt-8 pt-8 border-t border-neutral-800">
+                        <div className="flex justify-between items-center mb-6"></div>
                     </div>
 
                     {/* Universes List */}

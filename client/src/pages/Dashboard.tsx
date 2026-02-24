@@ -5,7 +5,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStr
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { PortfolioTracker } from '../components/PortfolioTracker';
+import { PortfolioSummaryWidget } from '../components/PortfolioSummaryWidget';
 import { SortableCard } from '../components/SortableCard';
 
 export default function Dashboard({ onSelect }: { onSelect: (symbol: string, assetType: string) => void }) {
@@ -102,7 +102,7 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Overview Dashboard</h1>
             </div>
 
-            <PortfolioTracker />
+            <PortfolioSummaryWidget />
 
             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-bold tracking-tight">Market Overview</h2>

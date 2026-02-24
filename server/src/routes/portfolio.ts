@@ -18,8 +18,8 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const enriched = await Promise.all(positions.map(async (pos) => {
             let currentPrice = pos.averageCost; // fallback to cost
             try {
-                const quote = await MarketData.getQuote(pos.symbol, pos.assetType as 'STOCK' | 'CRYPTO');
-                if (quote && quote.c) currentPrice = quote.c;
+                const quote: any = await MarketData.getQuote(pos.symbol, pos.assetType as 'STOCK' | 'CRYPTO');
+                if (quote && quote.price) currentPrice = quote.price;
             } catch (e) {
                 // Ignore API skips
             }

@@ -2,7 +2,7 @@ import { decryptText } from '../utils/crypto';
 import { prisma } from './cache';
 import { URL } from 'url';
 
-export function validateBaseUrl(urlStr: string | null | undefined, isCompat: boolean = false, isLocal: boolean = false): string | undefined {
+export function validateBaseUrl(urlStr: string | null | undefined, isCompat: boolean = false): string | undefined {
     if (!urlStr) return undefined;
     let url: URL;
     try {
@@ -11,7 +11,7 @@ export function validateBaseUrl(urlStr: string | null | undefined, isCompat: boo
         throw new Error('Invalid Base URL format');
     }
 
-    if (!isLocal && url.protocol !== 'https:') {
+    if (url.protocol !== 'https:') {
         throw new Error('Base URL must use HTTPS');
     }
 
@@ -28,20 +28,18 @@ export function validateBaseUrl(urlStr: string | null | undefined, isCompat: boo
         'api.x.ai'
     ];
 
-    if (!isCompat && !isLocal && !allowList.includes(hostname)) {
+    if (!isCompat && !allowList.includes(hostname)) {
         throw new Error(`Hostname ${hostname} is not allowed. Use OPENAI_COMPAT for custom domains.`);
     }
 
-    if (!isLocal) {
-        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-            throw new Error('Base URL cannot resolve to localhost');
-        }
-        if (hostname.startsWith('10.') || hostname.startsWith('192.168.') || hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
-            throw new Error('Base URL cannot resolve to private IP addresses');
-        }
-        if (hostname.endsWith('.local') || hostname.endsWith('.internal')) {
-            throw new Error('Base URL cannot resolve to internal network domains');
-        }
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+        throw new Error('Base URL cannot resolve to localhost');
+    }
+    if (hostname.startsWith('10.') || hostname.startsWith('192.168.') || hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
+        throw new Error('Base URL cannot resolve to private IP addresses');
+    }
+    if (hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+        throw new Error('Base URL cannot resolve to internal network domains');
     }
 
     return urlStr.replace(/\/$/, "");
@@ -155,8 +153,6 @@ export class LLMService {
                 return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.deepseek.com/v1');
             case 'OPENAI_COMPAT':
                 return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl, true));
-            case 'OLLAMA':
-                return new OpenAIProvider(apiKey || 'ollama', config.model, validateBaseUrl(config.baseUrl, false, true) ?? 'http://127.0.0.1:11434/v1');
             case 'GROQ':
                 return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.groq.com/openai/v1');
             case 'TOGETHER':

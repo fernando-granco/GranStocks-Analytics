@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
 import { User, Lock, Save } from 'lucide-react';
+import Select from 'react-select';
+
+// Generate native IANA timezone list
+const TIMEZONES = (Intl as any).supportedValuesOf('timeZone').map((tz: string) => ({ value: tz, label: tz.replace(/_/g, ' ') }));
 
 export function AccountProfile() {
     const queryClient = useQueryClient();
@@ -80,13 +84,34 @@ export function AccountProfile() {
 
                     <div>
                         <label className="block text-sm font-medium text-neutral-400 mb-2">Display Timezone</label>
-                        <select value={timezone} onChange={e => setTimezone(e.target.value)} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
-                            <option value="America/Toronto">Eastern Time (ET)</option>
-                            <option value="America/Chicago">Central Time (CT)</option>
-                            <option value="America/Denver">Mountain Time (MT)</option>
-                            <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                            <option value="UTC">UTC</option>
-                        </select>
+                        <Select
+                            options={TIMEZONES}
+                            value={TIMEZONES.find((t: any) => t.value === timezone)}
+                            onChange={(val: any) => setTimezone(val.value)}
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                            styles={{
+                                control: (base) => ({
+                                    ...base,
+                                    backgroundColor: 'black',
+                                    borderColor: '#262626', // neutral-800
+                                    minHeight: '42px',
+                                }),
+                                menu: (base) => ({
+                                    ...base,
+                                    backgroundColor: '#171717', // neutral-900
+                                    zIndex: 50
+                                }),
+                                option: (base, state) => ({
+                                    ...base,
+                                    backgroundColor: state.isFocused ? '#262626' : 'transparent',
+                                    color: 'white',
+                                    cursor: 'pointer'
+                                }),
+                                singleValue: (base) => ({ ...base, color: 'white' }),
+                                input: (base) => ({ ...base, color: 'white' }),
+                            }}
+                        />
                     </div>
 
                     <div className="md:col-span-2">

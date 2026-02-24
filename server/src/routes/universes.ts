@@ -8,6 +8,14 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 
+const DefinitionSchema = z.object({
+    symbols: z.array(z.any()).optional(),
+    q: z.string().optional(),
+    sector: z.string().optional(),
+    industry: z.string().optional(),
+    exchange: z.string().optional()
+});
+
 interface FinDBAsset {
     symbol: string;
     assetType?: string;
@@ -163,16 +171,10 @@ export default async function universeRoutes(server: FastifyInstance) {
         });
         if (!universe) return reply.status(404).send({ error: 'Universe not found' });
 
-        let criteria: any;
+        let criteria: z.infer<typeof DefinitionSchema>;
         try {
-            criteria = JSON.parse(universe.definitionJson);
-            z.object({
-                symbols: z.array(z.any()).optional(),
-                q: z.string().optional(),
-                sector: z.string().optional(),
-                industry: z.string().optional(),
-                exchange: z.string().optional()
-            }).parse(criteria);
+            const rawJson = JSON.parse(universe.definitionJson);
+            criteria = DefinitionSchema.parse(rawJson);
         } catch {
             return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
         }
@@ -224,9 +226,9 @@ export default async function universeRoutes(server: FastifyInstance) {
             results = db;
         }
 
-        if (criteria.sector) results = results.filter(a => a.sector.toLowerCase() === criteria.sector.toLowerCase());
-        if (criteria.industry) results = results.filter(a => a.industry.toLowerCase() === criteria.industry.toLowerCase());
-        if (criteria.exchange) results = results.filter(a => a.exchange.toLowerCase() === criteria.exchange.toLowerCase());
+        if (criteria.sector !== undefined) results = results.filter(a => a.sector.toLowerCase() === criteria.sector!.toLowerCase());
+        if (criteria.industry !== undefined) results = results.filter(a => a.industry.toLowerCase() === criteria.industry!.toLowerCase());
+        if (criteria.exchange !== undefined) results = results.filter(a => a.exchange.toLowerCase() === criteria.exchange!.toLowerCase());
 
         setImmediate(() => {
             import('../services/history-queue').then(q => {
@@ -253,16 +255,10 @@ export default async function universeRoutes(server: FastifyInstance) {
         if (!config) return reply.status(400).send({ error: 'No active AI Provider configured. Please add one in Settings.' });
 
         // Resolve assets (reusing logic from resolve route)
-        let criteria: any;
+        let criteria: z.infer<typeof DefinitionSchema>;
         try {
-            criteria = JSON.parse(universe.definitionJson);
-            z.object({
-                symbols: z.array(z.any()).optional(),
-                q: z.string().optional(),
-                sector: z.string().optional(),
-                industry: z.string().optional(),
-                exchange: z.string().optional()
-            }).parse(criteria);
+            const rawJson = JSON.parse(universe.definitionJson);
+            criteria = DefinitionSchema.parse(rawJson);
         } catch {
             return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
         }
@@ -300,9 +296,9 @@ export default async function universeRoutes(server: FastifyInstance) {
             results = db;
         }
 
-        if (criteria.sector) results = results.filter(a => a.sector.toLowerCase() === criteria.sector.toLowerCase());
-        if (criteria.industry) results = results.filter(a => a.industry.toLowerCase() === criteria.industry.toLowerCase());
-        if (criteria.exchange) results = results.filter(a => a.exchange.toLowerCase() === criteria.exchange.toLowerCase());
+        if (criteria.sector !== undefined) results = results.filter(a => a.sector.toLowerCase() === criteria.sector!.toLowerCase());
+        if (criteria.industry !== undefined) results = results.filter(a => a.industry.toLowerCase() === criteria.industry!.toLowerCase());
+        if (criteria.exchange !== undefined) results = results.filter(a => a.exchange.toLowerCase() === criteria.exchange!.toLowerCase());
 
         if (results.length === 0) return reply.status(400).send({ error: 'Universe is empty.' });
 
@@ -331,7 +327,7 @@ export default async function universeRoutes(server: FastifyInstance) {
         const date = new Date().toISOString().split('T')[0];
 
         try {
-            const narrative = await LLMService.generateNarrative(config.id, `Group: ${universe.name}`, date, promptJson);
+            const narrative = await LLMService.generateNarrative(config.id, `Group: ${universe.name} `, date, promptJson);
             return { narrative };
         } catch (e: any) {
             return reply.status(500).send({ error: e.message });
@@ -352,7 +348,13 @@ export default async function universeRoutes(server: FastifyInstance) {
         const universe = await prisma.universe.findFirst({ where: { id, userId: authUser.id } });
         if (!universe) return reply.status(404).send({ error: 'Not found' });
 
-        const criteria = JSON.parse(universe.definitionJson);
+        let criteria: z.infer<typeof DefinitionSchema>;
+        try {
+            const rawJson = JSON.parse(universe.definitionJson);
+            criteria = DefinitionSchema.parse(rawJson);
+        } catch {
+            return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
+        }
         if (!Array.isArray(criteria.symbols)) {
             return reply.status(400).send({ error: 'Can only reorder manually created Array-based universes' });
         }
@@ -373,7 +375,13 @@ export default async function universeRoutes(server: FastifyInstance) {
         const universe = await prisma.universe.findFirst({ where: { id, userId: authUser.id } });
         if (!universe) return reply.status(404).send({ error: 'Not found' });
 
-        const criteria = JSON.parse(universe.definitionJson);
+        let criteria: z.infer<typeof DefinitionSchema>;
+        try {
+            const rawJson = JSON.parse(universe.definitionJson);
+            criteria = DefinitionSchema.parse(rawJson);
+        } catch {
+            return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
+        }
         if (!Array.isArray(criteria.symbols)) return [];
 
         const results = await Promise.all(criteria.symbols.map(async (s: any) => {
@@ -410,7 +418,13 @@ export default async function universeRoutes(server: FastifyInstance) {
         const universe = await prisma.universe.findFirst({ where: { id, userId: authUser.id } });
         if (!universe) return reply.status(404).send({ error: 'Universe not found' });
 
-        const criteria = JSON.parse(universe.definitionJson);
+        let criteria: z.infer<typeof DefinitionSchema>;
+        try {
+            const rawJson = JSON.parse(universe.definitionJson);
+            criteria = DefinitionSchema.parse(rawJson);
+        } catch {
+            return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
+        }
         const symbols = Array.isArray(criteria.symbols) ? criteria.symbols.map((s: any) => s.symbol) : [];
 
         const assets = await prisma.asset.findMany({

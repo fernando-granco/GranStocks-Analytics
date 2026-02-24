@@ -6,8 +6,9 @@ import {
     ShieldCheck,
     Bot,
     Activity,
-    Database,
     Search,
+    Globe,
+    BellRing,
     ArrowRight
 } from 'lucide-react';
 
@@ -81,39 +82,45 @@ export default function Landing() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
 
                             <FeatureCard
-                                icon={<Database className="w-8 h-8 text-blue-400" />}
-                                title="Multi-Source Data Engine"
-                                description="Automated failover routing combining multiple premium data vendors via unified WebSockets and REST APIs for ultimate data reliability."
+                                icon={<Activity className="w-8 h-8 text-blue-400" />}
+                                title="Market Overview"
+                                description="A unified dashboard displaying your most critical tracked assets, daily performance, and market consensus at a glance."
                             />
 
                             <FeatureCard
-                                icon={<Activity className="w-8 h-8 text-emerald-400" />}
-                                title="Deterministic First"
-                                description="Real charts, mathematical indicators, volatility scoring, and risk flags computed entirely on-server before an LLM is even asked."
+                                icon={<TrendingUp className="w-8 h-8 text-emerald-400" />}
+                                title="Portfolio Tracking"
+                                description="Monitor your active holdings with real-time P&L calculations, cost basis tracking, and deterministic risk analysis."
                             />
 
                             <FeatureCard
-                                icon={<Bot className="w-8 h-8 text-purple-400" />}
-                                title="Multi-LLM 'Firm View'"
-                                description="Simulate an entire trading floor. Generate Technical, Fundamental, Bull, Bear, and Risk narratives using models from OpenAI, Anthropic, DeepSeek, and more."
+                                icon={<Globe className="w-8 h-8 text-purple-400" />}
+                                title="Watchlists & Universes"
+                                description="Organize massive lists of correlated assets into Universes for batch screening, comparative analysis, and sector tracking."
                             />
 
                             <FeatureCard
                                 icon={<Search className="w-8 h-8 text-orange-400" />}
                                 title="Background Screener"
-                                description="No hardcoded lists. Our background job runner continuously processes SP500, NASDAQ100, and Top Crypto pairs to find the absolute best candidates hourly."
+                                description="No hardcoded lists. Our background job runner continuously processes entire Universes to find the absolute best candidates based on math."
                             />
 
                             <FeatureCard
-                                icon={<ShieldCheck className="w-8 h-8 text-red-400" />}
-                                title="Zero-Trust Architecture"
-                                description="Client-side is 100% blind. No API keys ever leave the server. All external API calls happen securely behind the firewall. BYOK keys are encrypted at rest."
+                                icon={<BellRing className="w-8 h-8 text-red-400" />}
+                                title="System Alerts"
+                                description="Get instantly notified of critical price action breakouts, RSI crossovers, and algorithmic trading signals."
                             />
 
                             <FeatureCard
-                                icon={<TrendingUp className="w-8 h-8 text-cyan-400" />}
-                                title="Stocks & Crypto Combined"
-                                description="Track your entire universe in one dashboard. Built-in normalization brings traditional equities and 24/7 crypto markets onto a level analytical playing field."
+                                icon={<Bot className="w-8 h-8 text-cyan-400" />}
+                                title="AI Narratives & Firm View"
+                                description="Generate Technical, Fundamental, and Risk narratives strictly from deterministic data. Bring Your Own Key (BYOK) for OpenAI, Anthropic, DeepSeek, and more."
+                            />
+
+                            <FeatureCard
+                                icon={<ShieldCheck className="w-8 h-8 text-amber-400" />}
+                                title="Zero-Trust Admin Dashboard"
+                                description="Complete enterprise-grade user management, invite code systems, and Role-Based Access Control protected behind Fastify middleware."
                             />
 
                         </div>

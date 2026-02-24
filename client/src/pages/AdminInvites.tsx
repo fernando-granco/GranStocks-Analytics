@@ -89,7 +89,7 @@ export default function AdminInvites() {
                     </div>
                     <div className="w-32">
                         <label className="block text-sm text-neutral-400 mb-1">Max Uses</label>
-                        <input type="number" min="1" value={maxUses} onChange={e => setMaxUses(parseInt(e.target.value))} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" />
+                        <input type="number" min="0" value={maxUses} onChange={e => setMaxUses(parseInt(e.target.value))} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" title="0 = Unlimited" />
                     </div>
                     <div className="w-40">
                         <label className="block text-sm text-neutral-400 mb-1">Expires In (Days)</label>

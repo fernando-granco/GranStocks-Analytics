@@ -65,7 +65,7 @@ export default async function adminRoutes(server: FastifyInstance) {
             return reply.status(403).send({ error: "Direct password setting disabled in production. Use Force Reset." });
         }
 
-        const schema = z.object({ newPassword: z.string().min(6) });
+        const schema = z.object({ newPassword: z.string().min(10) });
         const { id } = req.params as { id: string };
         const { newPassword } = schema.parse(req.body);
         const authUser = req.user as { id: string };
@@ -119,21 +119,48 @@ export default async function adminRoutes(server: FastifyInstance) {
             return reply.status(403).send({ error: "Cannot delete yourself." });
         }
 
-        const user = await prisma.user.findUnique({ where: { id } });
-        if (!user) return reply.status(404).send({ error: "User not found" });
+        const [user, actor] = await Promise.all([
+            prisma.user.findUnique({ where: { id } }),
+            prisma.user.findUnique({ where: { id: authUser.id } })
+        ]);
 
-        await prisma.user.delete({ where: { id } });
+        if (!user) return reply.status(404).send({ error: "User not found" });
+        if (!actor) return reply.status(401).send({ error: "Actor not found" });
+
+        // Safeguard: Only SUPERADMINs can delete SUPERADMINs (if that role string is used, otherwise ADMIN logic below applies)
+        // If your platform considers "SUPERADMIN" as a distinct level, enforce it:
+        if (user.role === 'SUPERADMIN' && actor.role !== 'SUPERADMIN') {
+            return reply.status(403).send({ error: "Permission denied: Admins cannot delete Superadmins." });
+        }
+
+        // Clean up cascading relations to prevent foreign key constraint violations
+        await prisma.$transaction([
+            prisma.trackedAsset.deleteMany({ where: { userId: id } }),
+            prisma.userLLMConfig.deleteMany({ where: { userId: id } }),
+            prisma.aiNarrative.deleteMany({ where: { userId: id } }),
+            prisma.userPreferences.deleteMany({ where: { userId: id } }),
+            prisma.universe.deleteMany({ where: { userId: id } }),
+            prisma.passwordResetToken.deleteMany({ where: { userId: id } }),
+            prisma.analysisConfig.deleteMany({ where: { userId: id } }),
+            prisma.promptTemplate.deleteMany({ where: { userId: id } }),
+            prisma.alertRule.deleteMany({ where: { userId: id } }),
+            prisma.portfolioPosition.deleteMany({ where: { userId: id } }),
+            prisma.inviteCodeUse.deleteMany({ where: { userId: id } }),
+            prisma.adminAuditLog.deleteMany({ where: { actorUserId: id } }),
+            prisma.adminAuditLog.deleteMany({ where: { targetUserId: id } }),
+            prisma.user.delete({ where: { id } })
+        ]);
 
         await prisma.adminAuditLog.create({
             data: {
                 actorUserId: authUser.id,
-                targetUserId: id,
+                targetUserId: authUser.id, // Cannot target deleted user, must target self
                 action: 'DELETE_USER',
-                metadataJson: JSON.stringify({ email: user.email })
+                metadataJson: JSON.stringify({ deletedUserId: id, email: user.email, role: user.role })
             }
         });
 
-        return { success: true, message: "User deleted successfully." };
+        return { success: true, message: "User securely deleted." };
     });
 
     server.get('/audit', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -163,7 +190,7 @@ export default async function adminRoutes(server: FastifyInstance) {
     server.post('/invites', async (req: FastifyRequest, reply: FastifyReply) => {
         const schema = z.object({
             code: z.string().optional(),
-            maxUses: z.number().min(1).default(1),
+            maxUses: z.number().min(0).default(1),
             expiresDays: z.number().nullable().optional()
         });
         const { code, maxUses, expiresDays } = schema.parse(req.body);

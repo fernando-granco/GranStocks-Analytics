@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 const authSchema = z.object({
     email: z.string().email(),
     password: z.string().min(10),
-    inviteCode: z.string().optional()
+    inviteCode: z.string() // strictly required now
 });
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -14,25 +14,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         try {
             const { email, password, inviteCode } = authSchema.parse(request.body);
 
-            if (process.env.REQUIRE_INVITE_CODE === 'true') {
-                if (!inviteCode) {
-                    return reply.status(403).send({ error: 'Invite code is required for registration' });
-                }
 
-                const validCode = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
-                if (!validCode) {
-                    return reply.status(403).send({ error: 'Invalid invite code' });
-                }
-
-                if (validCode.expiresAt && validCode.expiresAt < new Date()) {
-                    return reply.status(403).send({ error: 'Invite code expired' });
-                }
-
-                const useCount = await prisma.inviteCodeUse.count({ where: { inviteCodeId: validCode.id } });
-                if (useCount >= validCode.maxUses) {
-                    return reply.status(403).send({ error: 'Invite code usage limit reached' });
-                }
-            }
 
             const existingUser = await prisma.user.findUnique({ where: { email } });
             if (existingUser) {
@@ -40,21 +22,40 @@ export default async function authRoutes(fastify: FastifyInstance) {
             }
 
             const passwordHash = await bcrypt.hash(password, 10);
-            const user = await prisma.user.create({
-                data: { email, passwordHash, role: 'USER' }
-            });
 
-            if (process.env.REQUIRE_INVITE_CODE === 'true' && inviteCode) {
-                const validCode = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
-                if (validCode) {
-                    await prisma.inviteCodeUse.create({
-                        data: {
-                            inviteCodeId: validCode.id,
-                            userId: user.id
-                        }
-                    });
+            // Execute registration in a transaction to prevent race conditions on invite limits
+            const user = await prisma.$transaction(async (tx) => {
+                const validCode = await tx.inviteCode.findUnique({ where: { code: inviteCode } });
+
+                if (!validCode) {
+                    throw new Error('Invalid invite code');
                 }
-            }
+
+                if (validCode.expiresAt && validCode.expiresAt < new Date()) {
+                    throw new Error('Invite code expired');
+                }
+
+                // Enforce usage limits only if maxUses is strictly greater than 0
+                if (validCode.maxUses > 0) {
+                    const useCount = await tx.inviteCodeUse.count({ where: { inviteCodeId: validCode.id } });
+                    if (useCount >= validCode.maxUses) {
+                        throw new Error('Invite code usage limit reached');
+                    }
+                }
+
+                const newUser = await tx.user.create({
+                    data: { email, passwordHash, role: 'USER' }
+                });
+
+                await tx.inviteCodeUse.create({
+                    data: {
+                        inviteCodeId: validCode.id,
+                        userId: newUser.id
+                    }
+                });
+
+                return newUser;
+            });
 
             const token = fastify.jwt.sign({ id: user.id });
             reply.setCookie('token', token, {
@@ -69,6 +70,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
         } catch (error: any) {
             if (error instanceof z.ZodError) {
                 return reply.status(400).send({ error: 'Validation Error', details: error.errors });
+            }
+            if (error.message === 'Invalid invite code' || error.message === 'Invite code expired' || error.message === 'Invite code usage limit reached') {
+                return reply.status(403).send({ error: error.message });
             }
             return reply.status(500).send({ error: 'Internal Server Error' });
         }

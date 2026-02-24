@@ -26,7 +26,7 @@ export default function Register() {
             const res = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, inviteCode: inviteCode || undefined })
+                body: JSON.stringify({ email, password, inviteCode })
             });
 
             const data = await res.json();
@@ -78,12 +78,13 @@ export default function Register() {
                         <p className="text-xs text-neutral-500 mt-1">Must be at least 10 characters long.</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-1">Invite Code {error === 'Invite code is required for registration' ? <span className="text-rose-500">*</span> : <span className="text-neutral-600">(if required)</span>}</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-1">Invite Code <span className="text-rose-500">*</span></label>
                         <input
                             type="text"
+                            required
                             value={inviteCode}
                             onChange={e => setInviteCode(e.target.value)}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-neutral-700"
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-neutral-700 uppercase"
                             placeholder="XXXX-YYYY-ZZZZ"
                         />
                     </div>

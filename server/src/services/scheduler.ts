@@ -164,6 +164,22 @@ export class DailyJobService {
         }, { timezone: activeTz });
         console.log(`Nightly PriceHistory Append Scheduled for 18:30 ${activeTz}`);
 
+        // Hourly Screener Refresh
+        cron.schedule('0 * * * *', async () => {
+            console.log('[Screener] Refreshing top-level screeners for the hour...');
+            const universes = ['SP500', 'NASDAQ100', 'CRYPTO'];
+            const date = new Date().toISOString().split('T')[0];
+
+            for (const u of universes) {
+                const assetType = u === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
+                // Fire and forget so we don't stall the loop entirely, but could also await
+                ScreenerService.runScreenerJob(u as 'SP500' | 'NASDAQ100' | 'CRYPTO', date).catch(e => {
+                    console.error(`[Screener] Hourly refresh failed for ${u}:`, e);
+                });
+            }
+        }, { timezone: activeTz });
+        console.log(`Hourly Screener Refresh Scheduled for 0 * * * * ${activeTz}`);
+
         // Runs on the 1st of every month at midnight
         cron.schedule('0 0 1 * *', () => {
             console.log('Running Monthly Demo Snapshot Rebuild...');

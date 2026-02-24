@@ -3,16 +3,19 @@ import { z } from 'zod';
 import { prisma } from '../services/cache';
 import bcrypt from 'bcryptjs';
 
-const authSchema = z.object({
+const loginSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(10),
-    inviteCode: z.string() // strictly required now
+    password: z.string().min(10)
+});
+
+const registerSchema = loginSchema.extend({
+    inviteCode: z.string()
 });
 
 export default async function authRoutes(fastify: FastifyInstance) {
     fastify.post('/register', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            const { email, password, inviteCode } = authSchema.parse(request.body);
+            const { email, password, inviteCode } = registerSchema.parse(request.body);
 
 
 
@@ -80,7 +83,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     fastify.post('/login', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            const { email, password } = authSchema.parse(request.body);
+            const { email, password } = loginSchema.parse(request.body);
 
             const user = await prisma.user.findUnique({ where: { email } });
             if (!user || !(await bcrypt.compare(password, user.passwordHash))) {

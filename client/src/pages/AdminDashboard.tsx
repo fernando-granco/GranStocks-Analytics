@@ -26,7 +26,7 @@ export default function AdminDashboard() {
         setTimeout(() => setBackfillStatus(''), 6000);
     };
 
-    if (user?.role !== 'ADMIN') {
+    if (!['ADMIN', 'SUPERADMIN'].includes(user?.role || '')) {
         return <div className="p-8 text-center text-rose-400">Unauthorized. Admin access required.</div>;
     }
 

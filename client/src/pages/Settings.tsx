@@ -395,15 +395,23 @@ export default function Settings() {
                             </div>
 
                             <div className="bg-neutral-950 p-4 border border-neutral-800 rounded-lg space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Output Format:</label>
-                                    <select value={promptOutputMode} onChange={e => setPromptOutputMode(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded text-white px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
-                                        <option value="TEXT_ONLY">Standard Text</option>
-                                        <option value="MARKDOWN">Markdown</option>
-                                        <option value="JSON">Raw JSON</option>
-                                        <option value="ACTION_LABELS">JSON + Action Labels (BUY/WAIT/SELL)</option>
-                                    </select>
-                                </div>
+                                <label className="block text-sm font-medium text-neutral-400 mb-2">Advanced Modules:</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setPromptOutputMode(prev => prev === 'ACTION_LABELS' ? 'TEXT_ONLY' : 'ACTION_LABELS')}
+                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${promptOutputMode === 'ACTION_LABELS'
+                                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                            : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:bg-neutral-800'
+                                        }`}
+                                >
+                                    <div className="flex flex-col text-left">
+                                        <span className="font-medium">Force Action Labels (BUY/SELL/WAIT)</span>
+                                        <span className="text-xs opacity-70">Instructs the LLM to output a simulated trading decision.</span>
+                                    </div>
+                                    <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors ${promptOutputMode === 'ACTION_LABELS' ? 'bg-rose-500' : 'bg-neutral-700'}`}>
+                                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${promptOutputMode === 'ACTION_LABELS' ? 'translate-x-4' : 'translate-x-0'}`} />
+                                    </div>
+                                </button>
                                 {promptOutputMode === 'ACTION_LABELS' && (
                                     <p className="text-xs text-rose-400 bg-rose-500/10 p-3 rounded border border-rose-500/20">
                                         <b>Disclaimer:</b> If enabled, the LLM will be forced to output simulated trading signals. This is STRICTLY for educational/demonstrational purposes and is NOT financial advice. Use at your own risk.

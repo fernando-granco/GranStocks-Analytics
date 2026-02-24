@@ -140,6 +140,30 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return reply.send({ id: user.id, email: user.email, fullName: user.fullName, role: user.role, status: user.status, mustChangePassword: user.mustChangePassword });
     });
 
+    fastify.post('/update-password', { preValidation: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            const updateSchema = z.object({ newPassword: z.string().min(10) });
+            const { newPassword } = updateSchema.parse(request.body);
+            const payload = request.user as { id: string };
+
+            const passwordHash = await bcrypt.hash(newPassword, 10);
+            await prisma.user.update({
+                where: { id: payload.id },
+                data: {
+                    passwordHash,
+                    mustChangePassword: false
+                }
+            });
+
+            return reply.send({ message: 'Password updated successfully' });
+        } catch (error: any) {
+            if (error instanceof z.ZodError) {
+                return reply.status(400).send({ error: 'Password must be at least 10 characters long.', details: error.errors });
+            }
+            return reply.status(500).send({ error: 'Internal Server Error' });
+        }
+    });
+
     // --- Prod Skeleton Endpoints ---
 
     fastify.post('/request-password-reset', { config: { rateLimit: { max: 3, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {

@@ -22,15 +22,15 @@ export async function bootstrapSuperAdmin() {
                 data: {
                     email,
                     passwordHash,
-                    role: 'ADMIN' // Always enforce ADMIN role
+                    role: 'SUPERADMIN' // Always enforce SUPERADMIN role
                 }
             });
             console.log('✅ Superadmin created successfully.');
-        } else if (existingAdmin.role !== 'ADMIN') {
-            console.log(`🛡️  Elevating existing user ${email} to ADMIN role...`);
+        } else if (existingAdmin.role !== 'SUPERADMIN') {
+            console.log(`🛡️  Elevating existing user ${email} to SUPERADMIN role...`);
             await prisma.user.update({
                 where: { email },
-                data: { role: 'ADMIN' }
+                data: { role: 'SUPERADMIN' }
             });
             console.log('✅ User elevated to Superadmin.');
         }

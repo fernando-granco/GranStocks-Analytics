@@ -37,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await fetch('/api/auth/logout', { method: 'POST' });
         } finally {
             setUser(null);
+            window.location.href = '/'; // Hard redirect to dump all React Query and state memory
         }
     };
 

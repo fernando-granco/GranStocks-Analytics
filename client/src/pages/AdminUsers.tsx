@@ -161,7 +161,11 @@ export default function AdminUsers() {
                                             {u.mustChangePassword && <span title="Must change password"><AlertTriangle size={14} className="text-amber-500" /></span>}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 text-xs font-bold rounded ${u.role === 'ADMIN' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-neutral-800 text-neutral-300'}`}>
+                                            <span className={`px-2 py-1 text-xs font-bold rounded flex items-center gap-1 w-max ${u.role === 'SUPERADMIN' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
+                                                    u.role === 'ADMIN' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
+                                                        'bg-neutral-800 text-neutral-300'
+                                                }`}>
+                                                {u.role === 'SUPERADMIN' && <KeyRound size={12} />}
                                                 {u.role}
                                             </span>
                                         </td>
@@ -174,31 +178,39 @@ export default function AdminUsers() {
                                             <div>J: {new Date(u.createdAt).toISOString().split('T')[0]}</div>
                                             <div className="text-neutral-500">L: {u.lastLoginAt ? new Date(u.lastLoginAt).toISOString().split('T')[0] : 'Never'}</div>
                                         </td>
-                                        <td className="px-6 py-4 flex gap-2 justify-end">
-                                            {u.status === 'ACTIVE' ? (
-                                                <button onClick={() => handleAction(u.id, 'Ban User', { status: 'BANNED' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-400 rounded transition-colors" title="Ban User">
-                                                    <UserX size={16} />
-                                                </button>
+                                        <td className="px-6 py-4 flex gap-2 justify-end items-center">
+                                            {u.role === 'SUPERADMIN' ? (
+                                                <span className="text-xs text-neutral-600 font-medium px-2 py-1 border border-neutral-800 rounded bg-neutral-900/50 cursor-not-allowed" title="System Protections Active">
+                                                    Protected
+                                                </span>
                                             ) : (
-                                                <button onClick={() => handleAction(u.id, 'Unban User', { status: 'ACTIVE' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded transition-colors" title="Unban User">
-                                                    <UserCheck size={16} />
-                                                </button>
+                                                <>
+                                                    {u.status === 'ACTIVE' ? (
+                                                        <button onClick={() => handleAction(u.id, 'Ban User', { status: 'BANNED' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-400 rounded transition-colors" title="Ban User">
+                                                            <UserX size={16} />
+                                                        </button>
+                                                    ) : (
+                                                        <button onClick={() => handleAction(u.id, 'Unban User', { status: 'ACTIVE' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded transition-colors" title="Unban User">
+                                                            <UserCheck size={16} />
+                                                        </button>
+                                                    )}
+                                                    {u.role === 'USER' ? (
+                                                        <button onClick={() => handleAction(u.id, 'Promote to Admin', { role: 'ADMIN' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-indigo-400 rounded transition-colors" title="Promote to Admin">
+                                                            <ShieldAlert size={16} />
+                                                        </button>
+                                                    ) : (
+                                                        <button onClick={() => handleAction(u.id, 'Demote to User', { role: 'USER' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 rounded transition-colors" title="Demote to User">
+                                                            <UserCheck size={16} />
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => handleForceReset(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 rounded transition-colors" title="Force Password Reset">
+                                                        <KeyRound size={16} />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-500 rounded transition-colors" title="Delete User">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </>
                                             )}
-                                            {u.role === 'USER' ? (
-                                                <button onClick={() => handleAction(u.id, 'Promote to Admin', { role: 'ADMIN' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-indigo-400 rounded transition-colors" title="Promote to Admin">
-                                                    <ShieldAlert size={16} />
-                                                </button>
-                                            ) : (
-                                                <button onClick={() => handleAction(u.id, 'Demote to User', { role: 'USER' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 rounded transition-colors" title="Demote to User">
-                                                    <UserCheck size={16} />
-                                                </button>
-                                            )}
-                                            <button onClick={() => handleForceReset(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 rounded transition-colors" title="Force Password Reset">
-                                                <KeyRound size={16} />
-                                            </button>
-                                            <button onClick={() => handleDelete(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-500 rounded transition-colors" title="Delete User">
-                                                <Trash2 size={16} />
-                                            </button>
                                         </td>
                                     </tr>
                                 ))}

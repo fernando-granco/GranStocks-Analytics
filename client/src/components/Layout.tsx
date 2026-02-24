@@ -1,5 +1,5 @@
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { TrendingUp, Settings, LogOut, BarChart3, Globe, LayoutDashboard, BellRing } from 'lucide-react';
+import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
+import { TrendingUp, Settings, LogOut, BarChart3, Globe, LayoutDashboard, BellRing, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Layout() {
@@ -16,13 +16,17 @@ export default function Layout() {
                         <span className="font-bold text-lg tracking-tight">GranStocks <span className="text-neutral-500 font-normal">Analytics</span></span>
                     </div>
                     <div className="flex items-center gap-6">
-                        {user?.role === 'ADMIN' && (
-                            <button
-                                onClick={() => navigate('/app/admin')}
-                                className={`px-3 py-1 text-xs uppercase tracking-wider font-bold border rounded transition-colors ${location.pathname.startsWith('/app/admin') ? 'bg-rose-500/20 text-rose-300 border-rose-500/50' : 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20'}`}
-                            >
-                                Admin Panel
-                            </button>
+                        {['ADMIN', 'SUPERADMIN'].includes(user?.role || '') && (
+                            <>
+                                <div className="hidden md:block w-px h-6 bg-neutral-800 mx-2" />
+                                <Link
+                                    to="/admin/users"
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${['/admin/users', '/admin/invites'].includes(location.pathname) ? 'bg-amber-500/10 text-amber-500' : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'}`}
+                                >
+                                    <Users size={18} />
+                                    <span className="hidden md:inline">Admin Panel</span>
+                                </Link>
+                            </>
                         )}
 
                         <button

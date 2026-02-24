@@ -63,7 +63,7 @@ export default function AdminInvites() {
         }
     };
 
-    if (user?.role !== 'ADMIN') {
+    if (!['ADMIN', 'SUPERADMIN'].includes(user?.role || '')) {
         return <div className="p-8 text-neutral-400">Unauthorized. Admin access required.</div>;
     }
 

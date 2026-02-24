@@ -59,7 +59,7 @@ export default fp(async (fastify) => {
             if (u.mustChangePassword) {
                 return reply.status(403).send({ error: 'Forbidden: Password change required', mustChangePassword: true });
             }
-            if (u.role !== 'ADMIN') {
+            if (!['ADMIN', 'SUPERADMIN'].includes(u.role)) {
                 return reply.status(403).send({ error: 'Forbidden: Admin access only' });
             }
 

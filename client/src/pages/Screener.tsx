@@ -101,7 +101,7 @@ export default function Screener() {
                     <p className="text-neutral-400 mt-2">Aggregating deterministic signals (Return, Volatility, Drawdown, Trend Strategy).</p>
                 </div>
 
-                {user?.role === 'ADMIN' && (
+                {['ADMIN', 'SUPERADMIN'].includes(user?.role || '') && (
                     <button
                         onClick={() => runJobMutation.mutate()}
                         disabled={runJobMutation.isPending || data?.state?.status === 'RUNNING'}

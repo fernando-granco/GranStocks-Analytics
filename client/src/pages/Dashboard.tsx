@@ -106,7 +106,7 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
 
             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-bold tracking-tight">Market Overview</h2>
-                {user?.role === 'ADMIN' && (
+                {['ADMIN', 'SUPERADMIN'].includes(user?.role || '') && (
                     <button
                         onClick={() => runJobMutation.mutate()}
                         disabled={runJobMutation.isPending}

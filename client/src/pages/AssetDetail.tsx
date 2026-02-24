@@ -3,7 +3,6 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Cpu, AlertTriangle, Sparkles, Activity, ShieldAlert, BarChart3, Database, FlaskConical, Blocks, Server, Newspaper } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../utils';
-import { TradingViewChart } from '../components/TradingViewChart';
 
 export default function AssetDetail({ symbol, assetType, onBack }: { symbol: string, assetType: 'STOCK' | 'CRYPTO', onBack: () => void }) {
     const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
@@ -117,12 +116,7 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
     const chartData = summary?.history?.c ? summary.history.t.map((timestamp: number, idx: number) => {
         const dt = new Date(timestamp * 1000);
         return {
-            time: timestamp,
             date: dt.toLocaleDateString(),
-            open: summary.history.o?.[idx] || summary.history.c[idx], // Fallbacks if not provided
-            high: summary.history.h?.[idx] || summary.history.c[idx],
-            low: summary.history.l?.[idx] || summary.history.c[idx],
-            close: summary.history.c[idx],
             price: summary.history.c[idx],
             volume: summary.history.v?.[idx] || 0
         };
@@ -210,7 +204,18 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
 
                                         <div className="h-[350px] w-full mt-4">
                                             {chartData.length > 0 ? (
-                                                <TradingViewChart data={chartData} type="candle" />
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={chartData}>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+                                                        <XAxis dataKey="date" stroke="#525252" fontSize={12} tickMargin={10} minTickGap={30} />
+                                                        <YAxis domain={['auto', 'auto']} stroke="#525252" fontSize={12} tickFormatter={v => `$${v}`} />
+                                                        <Tooltip
+                                                            contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
+                                                            itemStyle={{ color: '#a78bfa' }}
+                                                        />
+                                                        <Line type="monotone" dataKey="price" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 6, fill: '#818cf8', stroke: '#312e81', strokeWidth: 2 }} />
+                                                    </LineChart>
+                                                </ResponsiveContainer>
                                             ) : (
                                                 <div className="h-full flex flex-col items-center justify-center text-neutral-500">
                                                     <AlertTriangle className="mb-2 h-8 w-8 text-neutral-600" />

@@ -8,7 +8,6 @@ import {
     Activity,
     Search,
     Globe,
-    BellRing,
     ArrowRight
 } from 'lucide-react';
 
@@ -103,12 +102,6 @@ export default function Landing() {
                                 icon={<Search className="w-8 h-8 text-orange-400" />}
                                 title="Background Screener"
                                 description="No hardcoded lists. Our background job runner continuously processes entire Universes to find the absolute best candidates based on math."
-                            />
-
-                            <FeatureCard
-                                icon={<BellRing className="w-8 h-8 text-red-400" />}
-                                title="System Alerts"
-                                description="Get instantly notified of critical price action breakouts, RSI crossovers, and algorithmic trading signals."
                             />
 
                             <FeatureCard

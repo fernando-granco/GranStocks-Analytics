@@ -1,5 +1,6 @@
 import { prisma } from './cache';
 import { MarketData } from './market-data';
+import { toDateString } from '../utils/date-helpers';
 import { ScreenerService } from './screener';
 
 export class DemoService {
@@ -9,15 +10,15 @@ export class DemoService {
      */
     static async rebuildDemoSnapshots() {
         console.log('🏗️  Starting Demo Snapshot Rebuild...');
-        
+
         const now = new Date();
         const anchorDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 90 days ago
-        const anchorDateStr = anchorDate.toISOString().split('T')[0];
-        
+        const anchorDateStr = toDateString(anchorDate);
+
         // 1. Update Meta
         let meta = await prisma.demoSnapshotMeta.findFirst();
         const nextRefresh = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
-        
+
         if (!meta) {
             meta = await prisma.demoSnapshotMeta.create({
                 data: {
@@ -54,7 +55,7 @@ export class DemoService {
                 const anchorTs = anchorDate.getTime() / 1000;
                 const sliceIdx = fullCandles.t.findIndex((t: number) => t > anchorTs);
                 const limitIdx = sliceIdx === -1 ? fullCandles.t.length : sliceIdx;
-                
+
                 if (limitIdx < 20) continue; // Not enough data for indicators
 
                 const demoCandles = {
@@ -76,7 +77,7 @@ export class DemoService {
                 const startPrice = closes[0];
                 const endPrice = closes[closes.length - 1];
                 const return6m = ((endPrice - startPrice) / startPrice) * 100;
-                
+
                 const score = Math.max(0, Math.min(100, 50 + return6m)); // Simplified score
                 const price = endPrice;
 
@@ -136,7 +137,7 @@ export class DemoService {
                     }
                 });
 
-            } catch(e) {
+            } catch (e) {
                 console.error(`Failed demo snapshot for ${item.symbol}`, e);
             }
         }

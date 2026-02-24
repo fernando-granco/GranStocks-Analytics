@@ -78,7 +78,7 @@ export function AccountProfile() {
 
                 <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Full Name</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Screen Name</label>
                         <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" placeholder="Display Name" />
                     </div>
 

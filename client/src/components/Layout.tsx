@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { TrendingUp, Settings, LogOut, BarChart3, Globe, LayoutDashboard } from 'lucide-react';
+import { TrendingUp, Settings, LogOut, BarChart3, Globe, LayoutDashboard, BellRing } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Layout() {
@@ -18,10 +18,10 @@ export default function Layout() {
                     <div className="flex items-center gap-6">
                         {user?.role === 'ADMIN' && (
                             <button
-                                onClick={() => navigate('/app/admin/users')}
-                                className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded hover:bg-indigo-500/20 transition-colors"
+                                onClick={() => navigate('/app/admin')}
+                                className={`px-3 py-1 text-xs uppercase tracking-wider font-bold border rounded transition-colors ${location.pathname.startsWith('/app/admin') ? 'bg-rose-500/20 text-rose-300 border-rose-500/50' : 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20'}`}
                             >
-                                Admin
+                                Admin Panel
                             </button>
                         )}
 
@@ -34,11 +34,27 @@ export default function Layout() {
                         </button>
 
                         <button
+                            onClick={() => navigate('/app/portfolio')}
+                            className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/portfolio' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
+                            title="Portfolio"
+                        >
+                            <TrendingUp size={20} /> <span className="hidden md:inline font-medium text-sm">Portfolio</span>
+                        </button>
+
+                        <button
                             onClick={() => navigate('/app/watchlists')}
                             className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/watchlists' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
                             title="Watchlists"
                         >
                             <Globe size={20} /> <span className="hidden md:inline font-medium text-sm">Watchlists</span>
+                        </button>
+
+                        <button
+                            onClick={() => navigate('/app/alerts')}
+                            className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/alerts' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
+                            title="Alerts"
+                        >
+                            <BellRing size={20} /> <span className="hidden md:inline font-medium text-sm">Alerts</span>
                         </button>
 
                         <button

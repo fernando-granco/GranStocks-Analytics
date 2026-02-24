@@ -5,13 +5,34 @@ import bcrypt from 'bcryptjs';
 
 const authSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(10)
+    password: z.string().min(10),
+    inviteCode: z.string().optional()
 });
 
 export default async function authRoutes(fastify: FastifyInstance) {
     fastify.post('/register', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            const { email, password } = authSchema.parse(request.body);
+            const { email, password, inviteCode } = authSchema.parse(request.body);
+
+            if (process.env.REQUIRE_INVITE_CODE === 'true') {
+                if (!inviteCode) {
+                    return reply.status(403).send({ error: 'Invite code is required for registration' });
+                }
+
+                const validCode = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
+                if (!validCode) {
+                    return reply.status(403).send({ error: 'Invalid invite code' });
+                }
+
+                if (validCode.expiresAt && validCode.expiresAt < new Date()) {
+                    return reply.status(403).send({ error: 'Invite code expired' });
+                }
+
+                const useCount = await prisma.inviteCodeUse.count({ where: { inviteCodeId: validCode.id } });
+                if (useCount >= validCode.maxUses) {
+                    return reply.status(403).send({ error: 'Invite code usage limit reached' });
+                }
+            }
 
             const existingUser = await prisma.user.findUnique({ where: { email } });
             if (existingUser) {
@@ -22,6 +43,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
             const user = await prisma.user.create({
                 data: { email, passwordHash, role: 'USER' }
             });
+
+            if (process.env.REQUIRE_INVITE_CODE === 'true' && inviteCode) {
+                const validCode = await prisma.inviteCode.findUnique({ where: { code: inviteCode } });
+                if (validCode) {
+                    await prisma.inviteCodeUse.create({
+                        data: {
+                            inviteCodeId: validCode.id,
+                            userId: user.id
+                        }
+                    });
+                }
+            }
 
             const token = fastify.jwt.sign({ id: user.id });
             reply.setCookie('token', token, {

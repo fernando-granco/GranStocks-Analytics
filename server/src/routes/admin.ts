@@ -147,4 +147,74 @@ export default async function adminRoutes(server: FastifyInstance) {
         });
         return logs;
     });
+    // --- Invite Codes ---
+    server.get('/invites', async (req: FastifyRequest, reply: FastifyReply) => {
+        const codes = await prisma.inviteCode.findMany({
+            include: {
+                _count: {
+                    select: { uses: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        return codes;
+    });
+
+    server.post('/invites', async (req: FastifyRequest, reply: FastifyReply) => {
+        const schema = z.object({
+            code: z.string().optional(),
+            maxUses: z.number().min(1).default(1),
+            expiresDays: z.number().nullable().optional()
+        });
+        const { code, maxUses, expiresDays } = schema.parse(req.body);
+        const authUser = req.user as { id: string };
+
+        const finalCode = code || require('crypto').randomBytes(4).toString('hex').toUpperCase();
+        let expiresAt = null;
+        if (expiresDays) {
+            expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + expiresDays);
+        }
+
+        const invite = await prisma.inviteCode.create({
+            data: {
+                code: finalCode,
+                maxUses,
+                expiresAt,
+                createdBy: authUser.id
+            }
+        });
+
+        await prisma.adminAuditLog.create({
+            data: {
+                actorUserId: authUser.id,
+                targetUserId: authUser.id,
+                action: 'CREATE_INVITE',
+                metadataJson: JSON.stringify({ code: finalCode, maxUses })
+            }
+        });
+
+        return invite;
+    });
+
+    server.delete('/invites/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+        const { id } = req.params as { id: string };
+        const authUser = req.user as { id: string };
+
+        const existing = await prisma.inviteCode.findUnique({ where: { id } });
+        if (!existing) return reply.status(404).send({ error: "Invite code not found" });
+
+        await prisma.inviteCode.delete({ where: { id } });
+
+        await prisma.adminAuditLog.create({
+            data: {
+                actorUserId: authUser.id,
+                targetUserId: authUser.id,
+                action: 'DELETE_INVITE',
+                metadataJson: JSON.stringify({ code: existing.code })
+            }
+        });
+
+        return { success: true };
+    });
 }

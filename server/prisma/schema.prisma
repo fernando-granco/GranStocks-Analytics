@@ -33,6 +33,7 @@ model User {
   PromptTemplate PromptTemplate[]
   AlertGroup        AlertRule[]
   PortfolioGroup    PortfolioPosition[]
+  InviteCodeUse     InviteCodeUse[]
 }
 
 model Asset {
@@ -371,4 +372,27 @@ model AssetNews {
   sentimentScore Float?   // -1.0 to 1.0
   publishedAt    DateTime
   createdAt      DateTime @default(now())
+}
+
+model InviteCode {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  maxUses     Int      @default(1)
+  expiresAt   DateTime?
+  createdBy   String   // User id of admin who created it
+  createdAt   DateTime @default(now())
+  
+  uses        InviteCodeUse[]
+}
+
+model InviteCodeUse {
+  id            String   @id @default(uuid())
+  inviteCodeId  String
+  userId        String   
+  usedAt        DateTime @default(now())
+
+  inviteCode    InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteCodeId, userId])
 }

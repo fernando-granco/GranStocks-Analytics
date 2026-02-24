@@ -104,8 +104,9 @@ async function start() {
         DailyJobService.startCron(); // Start background cron scheduler
         BinanceProvider.initWebSocket(); // Start Crypto feed
 
-        await server.listen({ port: 3000, host: '0.0.0.0' });
-        console.log('Server listening on port 3000');
+        const port = parseInt(process.env.PORT || '3000', 10);
+        await server.listen({ port, host: '0.0.0.0' });
+        console.log(`Server listening on port ${port}`);
     } catch (err) {
         server.log.error(err);
         process.exit(1);

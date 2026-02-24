@@ -5,6 +5,7 @@ import { AlertService } from './alerts';
 export class HistoryWarmQueue {
     private static isProcessing = false;
     private static pendingQueue: { assetType: 'STOCK' | 'CRYPTO', symbol: string }[] = [];
+    private static pendingSet = new Set<string>();
 
     /**
      * Enqueues a symbol to have its 3-year history cached.
@@ -12,7 +13,8 @@ export class HistoryWarmQueue {
      */
     static async enqueue(symbol: string, assetType: 'STOCK' | 'CRYPTO', reason: string) {
         // In-memory dedup
-        if (this.pendingQueue.some(item => item.symbol === symbol && item.assetType === assetType)) {
+        const tKey = `${assetType}_${symbol}`;
+        if (this.pendingSet.has(tKey)) {
             return;
         }
 
@@ -41,6 +43,7 @@ export class HistoryWarmQueue {
             });
 
             this.pendingQueue.push({ assetType, symbol });
+            this.pendingSet.add(tKey);
             this.processQueue();
             console.log(`[HistoryQueue] Enqueued ${symbol} (${assetType}) via ${reason}`);
         } catch (e) {
@@ -55,6 +58,8 @@ export class HistoryWarmQueue {
         while (this.pendingQueue.length > 0) {
             const item = this.pendingQueue.shift();
             if (!item) continue;
+            const tKey = `${item.assetType}_${item.symbol}`;
+            this.pendingSet.delete(tKey);
 
             await prisma.symbolCacheState.update({
                 where: { assetType_symbol: { assetType: item.assetType, symbol: item.symbol } },

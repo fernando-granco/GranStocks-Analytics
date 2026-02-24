@@ -1,12 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from './services/cache';
 import { MarketData } from './services/market-data';
-import { LLMService } from './services/llm';
+import { LLMService, validateBaseUrl } from './services/llm';
 import { DailyJobService } from './services/scheduler';
 import { ScreenerService } from './services/screener';
 import { PredictionService, IndicatorService, FirmViewService } from './services/analysis';
 import { PriceHistoryService } from './services/price-history';
 import { encryptText } from './utils/crypto';
+import { toDateString } from './utils/date-helpers';
 import z from 'zod';
 
 export async function registerRoutes(server: FastifyInstance) {
@@ -167,7 +168,7 @@ export async function registerRoutes(server: FastifyInstance) {
     server.post('/api/settings/llm', { preValidation: [server.authenticate] }, async (req, reply) => {
         const schema = z.object({
             name: z.string(),
-            provider: z.enum(['OPENAI', 'ANTHROPIC', 'GEMINI', 'DEEPSEEK', 'GROQ', 'TOGETHER', 'OLLAMA', 'OPENAI_COMPAT']),
+            provider: z.enum(['OPENAI', 'ANTHROPIC', 'GEMINI', 'XAI', 'DEEPSEEK', 'GROQ', 'TOGETHER', 'OPENAI_COMPAT']),
             apiKey: z.string().min(1),
             model: z.string(),
             baseUrl: z.string().optional()
@@ -175,6 +176,15 @@ export async function registerRoutes(server: FastifyInstance) {
 
         const { name, provider, apiKey, model, baseUrl } = schema.parse(req.body);
         const authUser = req.user as { id: string };
+
+        let validatedBaseUrl = baseUrl;
+        if (baseUrl) {
+            try {
+                validatedBaseUrl = await validateBaseUrl(baseUrl, provider === 'OPENAI_COMPAT');
+            } catch (err: any) {
+                return reply.status(400).send({ error: err.message });
+            }
+        }
 
         const encryptedApiKey = encryptText(apiKey);
         const keyLast4 = apiKey.length > 4 ? apiKey.slice(-4) : apiKey;
@@ -185,7 +195,7 @@ export async function registerRoutes(server: FastifyInstance) {
                 name,
                 provider,
                 model,
-                baseUrl,
+                baseUrl: validatedBaseUrl,
                 encryptedApiKey,
                 keyLast4
             }
@@ -317,7 +327,7 @@ export async function registerRoutes(server: FastifyInstance) {
         });
         const { symbol, assetType, date, range } = schema.parse(req.query);
 
-        const dh = date || new Date().toISOString().substring(0, 10);
+        const dh = date || toDateString();
 
         // 1. Get raw quote & candles
         const quote = await MarketData.getQuote(symbol, assetType);
@@ -484,7 +494,7 @@ export async function registerRoutes(server: FastifyInstance) {
                 };
 
                 try {
-                    const narrativeText = await LLMService.generateNarrative(configId, symbol, date, JSON.stringify(assembledContext, null, 2));
+                    const narrativeText = await LLMService.generateNarrative(configId, authUser.id, symbol, date, JSON.stringify(assembledContext, null, 2));
 
                     const config = await prisma.userLLMConfig.findUnique({ where: { id: configId } });
 

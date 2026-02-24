@@ -6,6 +6,7 @@ import { TrendingUp } from 'lucide-react';
 export default function Register() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [inviteCode, setInviteCode] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -25,14 +26,15 @@ export default function Register() {
             const res = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({ email, password, inviteCode: inviteCode || undefined })
             });
 
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to register');
 
             login(data);
-            navigate('/');
+            await login(data);
+            navigate('/app');
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -74,6 +76,16 @@ export default function Register() {
                             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors"
                         />
                         <p className="text-xs text-neutral-500 mt-1">Must be at least 10 characters long.</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-neutral-400 mb-1">Invite Code {error === 'Invite code is required for registration' ? <span className="text-rose-500">*</span> : <span className="text-neutral-600">(if required)</span>}</label>
+                        <input
+                            type="text"
+                            value={inviteCode}
+                            onChange={e => setInviteCode(e.target.value)}
+                            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-neutral-700"
+                            placeholder="XXXX-YYYY-ZZZZ"
+                        />
                     </div>
                     <button
                         type="submit"

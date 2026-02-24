@@ -2,7 +2,9 @@ import { decryptText } from '../utils/crypto';
 import { prisma } from './cache';
 import { URL } from 'url';
 
-export function validateBaseUrl(urlStr: string | null | undefined, isCompat: boolean = false): string | undefined {
+import * as dns from 'dns/promises';
+
+export async function validateBaseUrl(urlStr: string | null | undefined, isCompat: boolean = false): Promise<string | undefined> {
     if (!urlStr) return undefined;
     let url: URL;
     try {
@@ -35,11 +37,16 @@ export function validateBaseUrl(urlStr: string | null | undefined, isCompat: boo
     if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
         throw new Error('Base URL cannot resolve to localhost');
     }
-    if (hostname.startsWith('10.') || hostname.startsWith('192.168.') || hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
-        throw new Error('Base URL cannot resolve to private IP addresses');
-    }
-    if (hostname.endsWith('.local') || hostname.endsWith('.internal')) {
-        throw new Error('Base URL cannot resolve to internal network domains');
+
+    try {
+        const lookup = await dns.lookup(hostname);
+        const ip = lookup.address;
+        if (ip === '127.0.0.1' || ip === '::1' || ip.startsWith('10.') || ip.startsWith('192.168.') || ip.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
+            throw new Error('Base URL resolves to a forbidden private IP address');
+        }
+    } catch (err: any) {
+        if (err.message.includes('forbidden private IP address')) throw err;
+        throw new Error(`Could not resolve hostname ${hostname}`);
     }
 
     return urlStr.replace(/\/$/, "");
@@ -139,26 +146,36 @@ export class AnthropicProvider implements LLMProvider {
 }
 
 export class LLMService {
-    static async getProviderInstance(configId: string): Promise<LLMProvider> {
-        const config = await prisma.userLLMConfig.findUniqueOrThrow({
-            where: { id: configId }
+    static async getProviderInstance(configId: string, userId: string): Promise<LLMProvider> {
+        const config = await prisma.userLLMConfig.findFirst({
+            where: { id: configId, userId }
         });
 
+        if (!config) {
+            throw new Error("LLM Config not found or unauthorized");
+        }
+
         const apiKey = decryptText(config.encryptedApiKey);
+        let baseUrl: string | undefined;
 
         switch (config.provider) {
             case 'OPENAI':
                 return new OpenAIProvider(apiKey, config.model);
             case 'DEEPSEEK':
-                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.deepseek.com/v1');
+                baseUrl = await validateBaseUrl(config.baseUrl);
+                return new OpenAIProvider(apiKey, config.model, baseUrl ?? 'https://api.deepseek.com/v1');
             case 'OPENAI_COMPAT':
-                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl, true));
+                baseUrl = await validateBaseUrl(config.baseUrl, true);
+                return new OpenAIProvider(apiKey, config.model, baseUrl);
             case 'GROQ':
-                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.groq.com/openai/v1');
+                baseUrl = await validateBaseUrl(config.baseUrl);
+                return new OpenAIProvider(apiKey, config.model, baseUrl ?? 'https://api.groq.com/openai/v1');
             case 'TOGETHER':
-                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.together.xyz/v1');
+                baseUrl = await validateBaseUrl(config.baseUrl);
+                return new OpenAIProvider(apiKey, config.model, baseUrl ?? 'https://api.together.xyz/v1');
             case 'XAI':
-                return new OpenAIProvider(apiKey, config.model, validateBaseUrl(config.baseUrl) ?? 'https://api.x.ai/v1');
+                baseUrl = await validateBaseUrl(config.baseUrl);
+                return new OpenAIProvider(apiKey, config.model, baseUrl ?? 'https://api.x.ai/v1');
             case 'ANTHROPIC':
                 return new AnthropicProvider(apiKey, config.model);
             case 'GEMINI':
@@ -168,10 +185,11 @@ export class LLMService {
         }
     }
 
-    static async generateNarrative(configId: string, symbol: string | null, date: string, promptDataJson: string, role: string = 'CONSENSUS'): Promise<string> {
-        const provider = await LLMService.getProviderInstance(configId);
+    static async generateNarrative(configId: string, userId: string, symbol: string | null, date: string, promptDataJson: string, role: string = 'CONSENSUS'): Promise<string> {
+        const provider = await LLMService.getProviderInstance(configId, userId);
 
-        const config = await prisma.userLLMConfig.findUniqueOrThrow({ where: { id: configId } });
+        const config = await prisma.userLLMConfig.findFirst({ where: { id: configId, userId } });
+        if (!config) throw new Error("LLM Config not found or unauthorized");
         const promptTemplate = await prisma.promptTemplate.findFirst({
             where: { userId: config.userId, role, enabled: true, scope: 'GLOBAL' }
         });
@@ -180,13 +198,23 @@ export class LLMService {
         let isJsonMode = false;
 
         if (promptTemplate) {
+            let safeData = promptDataJson;
+            if (safeData.length > 25000) {
+                safeData = safeData.substring(0, 25000) + "\n... [TRUNCATED FOR SAFE SIZE LIMIT]";
+            }
             prompt = promptTemplate.templateText
-                .replace(/{{EVIDENCE_PACK}}/g, promptDataJson)
-                .replace(/{{EVIDENCE_PACK_JSON}}/g, promptDataJson)
+                .replace(/{{EVIDENCE_PACK}}/g, safeData)
+                .replace(/{{EVIDENCE_PACK_JSON}}/g, safeData)
                 .replace(/{{ASSET_SYMBOL}}/g, symbol ?? 'Portfolio')
                 .replace(/{{DATE}}/g, date);
 
             isJsonMode = promptTemplate.outputMode === 'ACTION_LABELS';
+
+            if (promptTemplate.outputMode === 'JSON') {
+                prompt += '\n\nPlease return your response ONLY as valid JSON.';
+            } else if (promptTemplate.outputMode === 'MARKDOWN') {
+                prompt += '\n\nPlease format your numerical analysis and insights using well-structured Markdown format (headers, bolding, lists).';
+            }
         }
 
         if (isJsonMode) {
@@ -220,6 +248,9 @@ export class LLMService {
                     return JSON.stringify({ action: "WAIT", narrative: "Failed to parse LLM Action Label response. Raw output: " + cleanNarrative });
                 }
             }
+        } else if (promptTemplate && promptTemplate.outputMode === 'JSON') {
+            let cleanNarrative = narrative.replace(/```json/g, '').replace(/```/g, '').trim();
+            return cleanNarrative;
         }
 
         return narrative;

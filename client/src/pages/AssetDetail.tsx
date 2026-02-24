@@ -1,8 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Cpu, AlertTriangle, Sparkles, Activity, ShieldAlert, BarChart3, Database, FlaskConical, Blocks, Server, Newspaper } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../utils';
+
+const CustomizedCandlestick = (props: any) => {
+    const { x, y, width, height, payload } = props;
+    const { open, close, high, low } = payload;
+
+    const isGrowing = close >= open;
+    const color = isGrowing ? '#34d399' : '#fb7185'; // emerald-400 : rose-400
+
+    const priceRange = high - low;
+    let openY = y;
+    let closeY = y + height;
+
+    if (priceRange > 0) {
+        openY = y + ((high - open) / priceRange) * height;
+        closeY = y + ((high - close) / priceRange) * height;
+    } else {
+        openY = y;
+        closeY = y;
+    }
+
+    const rectTop = Math.min(openY, closeY);
+    let rectHeight = Math.abs(openY - closeY);
+    if (rectHeight < 1) rectHeight = 1;
+
+    const centerX = x + width / 2;
+
+    return (
+        <g>
+            <line stroke={color} x1={centerX} x2={centerX} y1={y} y2={y + height} />
+            <rect fill={color} stroke={color} x={x} y={rectTop} width={width} height={rectHeight} />
+        </g>
+    );
+};
 
 export default function AssetDetail({ symbol, assetType, onBack }: { symbol: string, assetType: 'STOCK' | 'CRYPTO', onBack: () => void }) {
     const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
@@ -20,6 +53,16 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
             return res.json();
         }
     });
+
+    const { data: analysisConfigs } = useQuery({
+        queryKey: ['analysisConfigs'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/analysis');
+            if (!res.ok) return [];
+            return res.json();
+        }
+    });
+    const activePresetName = analysisConfigs?.find((c: any) => c.isActive)?.name || 'Default Strategy';
 
     const { data: fundamentals, isLoading: isLoadingFundamentals } = useQuery({
         queryKey: ['assetFundamentals', symbol, assetType],
@@ -118,21 +161,19 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
         return {
             date: dt.toLocaleDateString(),
             price: summary.candles.c[idx],
+            open: summary.candles.o[idx],
+            close: summary.candles.c[idx],
+            high: summary.candles.h[idx],
+            low: summary.candles.l[idx],
+            bounds: [summary.candles.l[idx], summary.candles.h[idx]],
             volume: summary.candles.v?.[idx] || 0
         };
     }) : [];
 
-    // Deterministic Mock "Algorithm" Signal for side-by-side comparison
-    const getAlgoAction = () => {
-        if (!effectiveIndicators) return 'WAIT';
-        let score = 0;
-        if (effectiveIndicators.sma20 > effectiveIndicators.sma50) score += 1;
-        if (effectiveIndicators.rsi14 < 40) score += 1;
-        if (effectiveIndicators.rsi14 > 60) score -= 1;
-        if (effectiveIndicators.vol20 && effectiveIndicators.vol20 > 0.4) score -= 1;
-        return score > 0 ? 'BUY' : score < 0 ? 'SELL' : 'WAIT';
-    };
-    const algoAction = getAlgoAction();
+    // Deterministic Algorithm Signal from backend
+    const oneDayPrediction = summary?.predictions?.find((p: any) => p.horizonDays === 1);
+    const algoAction = oneDayPrediction ? (oneDayPrediction.predictedReturnPct > 0.05 ? 'BUY' : oneDayPrediction.predictedReturnPct < -0.05 ? 'SELL' : 'HOLD') : 'HOLD';
+    const algoConfidence = oneDayPrediction ? `${Math.round(oneDayPrediction.confidence * 100)}%` : 'N/A';
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -156,6 +197,20 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                     {(summary.quote?.changePct || 0) >= 0 ? '+' : ''}{summary.quote?.changePct != null ? summary.quote.changePct.toFixed(2) : '0.00'}%
                                 </span>
                                 <span className="text-xs text-neutral-500 flex items-center gap-1"><Database size={12} /> {summary.quote?.source || 'N/A'}</span>
+                            </div>
+                            <div className="mt-3 flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded text-xs font-medium">
+                                    Analyzing via: {activePresetName}
+                                </span>
+                                {oneDayPrediction && (
+                                    <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-0.5" title={oneDayPrediction.explanationText}>
+                                        <Cpu size={12} className="text-amber-400" />
+                                        <span className="text-xs text-neutral-400 font-semibold tracking-wide uppercase">AI Bias (1D):</span>
+                                        <span className={cn("text-xs font-bold", algoAction === 'BUY' ? "text-emerald-400" : algoAction === 'SELL' ? "text-rose-400" : "text-neutral-300")}>
+                                            {algoAction} ({algoConfidence})
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -205,16 +260,33 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                         <div className="h-[350px] w-full mt-4">
                                             {chartData.length > 0 ? (
                                                 <ResponsiveContainer width="100%" height="100%">
-                                                    <LineChart data={chartData}>
+                                                    <ComposedChart data={chartData}>
                                                         <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
                                                         <XAxis dataKey="date" stroke="#525252" fontSize={12} tickMargin={10} minTickGap={30} />
                                                         <YAxis domain={['auto', 'auto']} stroke="#525252" fontSize={12} tickFormatter={v => `$${v}`} />
                                                         <Tooltip
                                                             contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
                                                             itemStyle={{ color: '#a78bfa' }}
+                                                            content={({ active, payload, label }) => {
+                                                                if (active && payload && payload.length) {
+                                                                    const data = payload[0].payload;
+                                                                    return (
+                                                                        <div className="bg-neutral-900 border border-neutral-700 p-3 rounded-lg shadow-xl text-sm">
+                                                                            <div className="text-neutral-400 mb-2 font-bold">{label}</div>
+                                                                            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                                                                <span className="text-neutral-500">Open:</span><span className="text-neutral-200 font-mono">${data.open.toFixed(2)}</span>
+                                                                                <span className="text-neutral-500">High:</span><span className="text-neutral-200 font-mono">${data.high.toFixed(2)}</span>
+                                                                                <span className="text-neutral-500">Low:</span><span className="text-neutral-200 font-mono">${data.low.toFixed(2)}</span>
+                                                                                <span className="text-neutral-500">Close:</span><span className={cn("font-mono font-medium", data.close >= data.open ? 'text-emerald-400' : 'text-rose-400')}>${data.close.toFixed(2)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            }}
                                                         />
-                                                        <Line type="monotone" dataKey="price" stroke="#818cf8" strokeWidth={2} dot={false} activeDot={{ r: 6, fill: '#818cf8', stroke: '#312e81', strokeWidth: 2 }} />
-                                                    </LineChart>
+                                                        <Bar dataKey="bounds" shape={<CustomizedCandlestick />} />
+                                                    </ComposedChart>
                                                 </ResponsiveContainer>
                                             ) : (
                                                 <div className="h-full flex flex-col items-center justify-center text-neutral-500">
@@ -228,7 +300,7 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                             <div className="h-[150px] w-full pt-4 border-t border-neutral-800">
                                                 <div className="text-xs text-neutral-500 font-bold mb-2 uppercase tracking-wider">Volume</div>
                                                 <ResponsiveContainer width="100%" height="100%">
-                                                    <LineChart data={chartData}>
+                                                    <ComposedChart data={chartData}>
                                                         <CartesianGrid strokeDasharray="3 3" stroke="#1f1f1f" vertical={false} />
                                                         <XAxis dataKey="date" hide />
                                                         <YAxis stroke="#525252" fontSize={10} tickFormatter={v => `${(v / 1000000).toFixed(1)}M`} />
@@ -236,8 +308,8 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                                             contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
                                                             formatter={(value: number) => [value ? value.toLocaleString() : '0', 'Volume']}
                                                         />
-                                                        <Line type="step" dataKey="volume" stroke="#525252" strokeWidth={2} dot={false} />
-                                                    </LineChart>
+                                                        <Bar dataKey="volume" fill="#525252" />
+                                                    </ComposedChart>
                                                 </ResponsiveContainer>
                                             </div>
                                         )}
@@ -249,14 +321,22 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                         <h3 className="text-lg font-semibold text-neutral-300 border-b border-neutral-800 pb-2">Technical Indicators</h3>
                                         {effectiveIndicators ? (
                                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                                <MetricCard label="RSI (14)" value={effectiveIndicators.rsi14?.toFixed(2)} />
-                                                <MetricCard label="Volatility (20d)" value={effectiveIndicators.vol20 != null ? `${(effectiveIndicators.vol20 * 100).toFixed(2)}%` : '---'} />
-                                                <MetricCard label="Trend (20/50)" value={effectiveIndicators.sma20 > effectiveIndicators.sma50 ? 'BULLISH' : 'BEARISH'} />
+                                                <MetricCard label="RSI (14)" value={effectiveIndicators.rsi14?.toFixed(2)} tooltip="Relative Strength Index: Momentum oscillator measuring the speed and change of price movements." />
+                                                <MetricCard label="Volatility (20d)" value={effectiveIndicators.vol20 != null ? `${(effectiveIndicators.vol20 * 100).toFixed(2)}%` : '---'} tooltip="Annualized variance over the last 20 days." />
+                                                <MetricCard label="Trend (20/50)" value={effectiveIndicators.sma20 > effectiveIndicators.sma50 ? 'BULLISH' : 'BEARISH'} tooltip="Simple Moving Average crossover trend state." />
 
-                                                <MetricCard label="MACD" value={effectiveIndicators.macd?.macd?.toFixed(3)} />
-                                                <MetricCard label="Stochastic K" value={effectiveIndicators.stochastic?.k?.toFixed(1)} />
-                                                <MetricCard label="ATR (14)" value={effectiveIndicators.atr14?.toFixed(2)} />
-                                                <MetricCard label="Bollinger Width" value={effectiveIndicators.bollinger ? (effectiveIndicators.bollinger.upper - effectiveIndicators.bollinger.lower).toFixed(2) : '-'} />
+                                                <MetricCard label="MACD" value={effectiveIndicators.macd?.macd?.toFixed(3)} tooltip="Moving Average Convergence Divergence." />
+                                                <MetricCard label="Stochastic K" value={effectiveIndicators.stochastic?.k?.toFixed(1)} tooltip="Stochastic Oscillator %K: Momentum indicator showing closing price relative to high-low range." />
+                                                <MetricCard label="ATR (14)" value={effectiveIndicators.atr14?.toFixed(2)} tooltip="Average True Range: Measure of daily volatility amplitude." />
+                                                <MetricCard label="Bollinger Width" value={effectiveIndicators.bollinger ? (effectiveIndicators.bollinger.upper - effectiveIndicators.bollinger.lower).toFixed(2) : '-'} tooltip="Distance between upper and lower Bollinger Bands." />
+
+                                                <MetricCard label="ADX (14)" value={effectiveIndicators.adx14?.toFixed(1)} tooltip="Average Directional Index: Measures the absolute strength of a trend." />
+                                                <MetricCard label="OBV" value={effectiveIndicators.obv != null ? (effectiveIndicators.obv > 1000000 ? `${(effectiveIndicators.obv / 1000000).toFixed(1)}M` : effectiveIndicators.obv.toLocaleString()) : '-'} tooltip="On-Balance Volume: Cumulative volume tracking buying vs selling pressure." />
+                                                <MetricCard label="MFI (14)" value={effectiveIndicators.mfi14?.toFixed(1)} tooltip="Money Flow Index: Volume-weighted version of RSI indicating buying/selling pressure." />
+                                                <MetricCard label="VWAP (14)" value={effectiveIndicators.vwap ? `$${effectiveIndicators.vwap.toFixed(2)}` : '-'} tooltip="Volume Weighted Average Price over a trailing 14-day window." />
+                                                <MetricCard label="ROC (14)" value={effectiveIndicators.roc14 ? `${effectiveIndicators.roc14.toFixed(2)}%` : '-'} tooltip="Rate of Change: Percentage change in price over the last 14 days." />
+                                                <MetricCard label="CCI (20)" value={effectiveIndicators.cci20?.toFixed(1)} tooltip="Commodity Channel Index: Helps identify new trends or extreme conditions." />
+                                                <MetricCard label="Williams %R" value={effectiveIndicators.williamsR14?.toFixed(1)} tooltip="Momentum indicator measuring overbought and oversold levels (-0 to -100)." />
                                             </div>
                                         ) : (
                                             <div className="text-center py-8 text-neutral-500 animate-pulse">
@@ -369,6 +449,26 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                             </div>
                                         ) : (
                                             <p className="text-neutral-500">No risk metrics computed yet.</p>
+                                        )}
+
+                                        {summary?.predictions?.[0]?.riskSignals && summary.predictions[0].riskSignals.length > 0 && (
+                                            <div className="mt-6 space-y-3">
+                                                <h4 className="text-sm font-semibold text-neutral-400 uppercase tracking-widest mb-3 border-t border-neutral-800 pt-4">Identified Risk Factors</h4>
+                                                {summary.predictions[0].riskSignals.map((signal: any, idx: number) => (
+                                                    <div key={idx} className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 flex flex-col md:flex-row gap-4 items-start md:items-center leading-relaxed">
+                                                        <div className={cn("px-3 py-1 rounded text-xs font-bold w-full md:w-24 text-center shrink-0 shadow-inner",
+                                                            signal.severity === 'HIGH' ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" :
+                                                                signal.severity === 'MEDIUM' ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                                                                    "bg-blue-500/20 text-blue-400 border border-blue-500/30")}>
+                                                            {signal.severity} RISK
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-[10px] text-neutral-500 font-bold mb-1 uppercase tracking-wider">{signal.category}</div>
+                                                            <div className="text-sm text-neutral-200">{signal.message}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
                                     </div>
                                 )}
@@ -559,10 +659,10 @@ function TabButton({ active, onClick, children, icon }: { active: boolean, onCli
     );
 }
 
-function MetricCard({ label, value, isNegative }: { label: string, value: string | undefined, isNegative?: boolean }) {
+function MetricCard({ label, value, isNegative, tooltip }: { label: string, value: string | undefined, isNegative?: boolean, tooltip?: string }) {
     return (
-        <div className={cn("p-4 rounded-xl border bg-neutral-900/50", isNegative ? "border-rose-900/30" : "border-neutral-800")}>
-            <div className="text-xs text-neutral-500 uppercase font-semibold tracking-wider mb-1">{label}</div>
+        <div className={cn("p-4 rounded-xl border bg-neutral-900/50 hover:bg-neutral-800/80 transition-colors", isNegative ? "border-rose-900/30" : "border-neutral-800")} title={tooltip}>
+            <div className={cn("text-xs text-neutral-500 uppercase font-semibold tracking-wider mb-1", tooltip ? "cursor-help underline decoration-neutral-700 decoration-dotted underline-offset-4" : "")}>{label}</div>
             <div className={cn("text-lg font-medium", isNegative ? "text-rose-400" : "text-neutral-200")}>{value || '-'}</div>
         </div>
     );

@@ -1,5 +1,6 @@
 import { prisma } from '../cache';
 import { z } from 'zod';
+import { toDateString } from '../../utils/date-helpers';
 
 export class FinnhubProvider {
     static getApiKey(): string {
@@ -61,16 +62,16 @@ export class FinnhubProvider {
         // Cache in memory for earnings to prevent UI spamming, and sync to DB
         // Search for upcoming earnings (today to +60 days)
         const cache = await prisma.earningsEvent.findMany({
-            where: { symbol, date: { gte: new Date().toISOString().split('T')[0] } },
+            where: { symbol, date: { gte: toDateString() } },
             orderBy: { date: 'asc' }
         });
 
         if (cache.length > 0) return cache;
 
-        const start = new Date().toISOString().split('T')[0];
+        const start = toDateString();
         const endDay = new Date();
         endDay.setDate(endDay.getDate() + 90);
-        const end = endDay.toISOString().split('T')[0];
+        const end = toDateString(endDay);
 
         const url = `https://finnhub.io/api/v1/calendar/earnings?symbol=${symbol}&from=${start}&to=${end}&token=${this.getApiKey()}`;
         const res = await fetch(url);

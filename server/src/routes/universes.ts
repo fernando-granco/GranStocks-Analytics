@@ -327,7 +327,7 @@ export default async function universeRoutes(server: FastifyInstance) {
         const date = new Date().toISOString().split('T')[0];
 
         try {
-            const narrative = await LLMService.generateNarrative(config.id, `Group: ${universe.name} `, date, promptJson);
+            const narrative = await LLMService.generateNarrative(config.id, authUser.id, `Group: ${universe.name} `, date, promptJson);
             return { narrative };
         } catch (e: any) {
             return reply.status(500).send({ error: e.message });

@@ -14,8 +14,10 @@ import Register from './pages/Register';
 import DemoDashboard from './pages/DemoDashboard';
 import DemoScreener from './pages/DemoScreener';
 import DemoAssetDetail from './pages/DemoAssetDetail';
-import AdminUsers from './pages/AdminUsers';
+import AdminDashboard from './pages/AdminDashboard';
 import Watchlists from './pages/Watchlists';
+import Portfolio from './pages/Portfolio';
+import Alerts from './pages/Alerts';
 import UniverseDetail from './pages/UniverseDetail';
 import './index.css';
 
@@ -55,8 +57,10 @@ export default function App() {
                                     <Route index element={<DashboardWrapper />} />
                                     <Route path="screener" element={<Screener />} />
                                     <Route path="settings" element={<Settings />} />
-                                    <Route path="admin/users" element={<AdminUsers />} />
+                                    <Route path="admin" element={<AdminDashboard />} />
                                     <Route path="watchlists" element={<Watchlists />} />
+                                    <Route path="portfolio" element={<Portfolio />} />
+                                    <Route path="alerts" element={<Alerts />} />
                                     <Route path="universe/:id" element={<UniverseDetail />} />
                                     <Route path="asset/:assetType/:symbol" element={<AssetDetailWrapper />} />
                                 </Route>

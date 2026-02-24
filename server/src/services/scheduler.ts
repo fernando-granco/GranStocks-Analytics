@@ -6,6 +6,7 @@ import { PriceHistoryService } from './price-history';
 import { DemoService } from './demo';
 import { ScreenerService } from './screener';
 import { AlertService } from './alerts';
+import { toDateString } from '../utils/date-helpers';
 
 export class DailyJobService {
     static async processAsset(asset: any, dateStr: string) {
@@ -96,13 +97,8 @@ export class DailyJobService {
     }
 
     static async runDailyJob(overrideDateStr?: string) {
-        // America/Toronto timezone
-        const dateStr = overrideDateStr || new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'America/Toronto',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        }).format(new Date());
+        // Enforce shared analysis timezone
+        const dateStr = overrideDateStr || toDateString();
 
         console.log(`Starting Daily Job for Date: ${dateStr} `);
 
@@ -148,13 +144,15 @@ export class DailyJobService {
     }
 
     static startCron() {
-        // Runs at 18:00 America/Toronto Time daily
+        const activeTz = process.env.ANALYSIS_TIMEZONE || 'America/New_York';
+
+        // Runs at 18:00 Time daily
         cron.schedule('0 18 * * *', () => {
             this.runDailyJob().catch(console.error);
         }, {
-            timezone: 'America/Toronto'
+            timezone: activeTz
         });
-        console.log('Daily Job Cron Scheduled for 18:00 America/Toronto');
+        console.log(`Daily Job Cron Scheduled for 18:00 ${activeTz}`);
 
         // Nightly candle append — runs at 18:30 to give daily bars time to settle
         cron.schedule('30 18 * * *', async () => {
@@ -163,8 +161,8 @@ export class DailyJobService {
             for (const asset of assets) {
                 await PriceHistoryService.appendLatestCandle(asset.symbol, asset.type as 'STOCK' | 'CRYPTO');
             }
-        }, { timezone: 'America/Toronto' });
-        console.log('Nightly PriceHistory Append Scheduled for 18:30 America/Toronto');
+        }, { timezone: activeTz });
+        console.log(`Nightly PriceHistory Append Scheduled for 18:30 ${activeTz}`);
 
         // Runs on the 1st of every month at midnight
         cron.schedule('0 0 1 * *', () => {

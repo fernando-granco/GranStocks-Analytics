@@ -20,6 +20,8 @@ export function PortfolioTracker() {
     const [formSymbol, setFormSymbol] = useState('');
     const [formQty, setFormQty] = useState('');
     const [formPrice, setFormPrice] = useState('');
+    const [formAssetType, setFormAssetType] = useState<'STOCK' | 'CRYPTO'>('STOCK');
+    const [showAddForm, setShowAddForm] = useState(false);
 
     const fetchPositions = async () => {
         setLoading(true);
@@ -48,6 +50,7 @@ export function PortfolioTracker() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     symbol: formSymbol.toUpperCase(),
+                    assetType: formAssetType,
                     quantity: parseFloat(formQty),
                     averageCost: parseFloat(formPrice)
                 })
@@ -93,40 +96,62 @@ export function PortfolioTracker() {
                 </div>
             </div>
 
-            <form onSubmit={handleAdd} className="grid grid-cols-4 gap-4 mb-6">
-                <input
-                    type="text"
-                    placeholder="Symbol (e.g. AAPL)"
-                    className="col-span-1 bg-background/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    value={formSymbol}
-                    onChange={e => setFormSymbol(e.target.value)}
-                    required
-                />
-                <input
-                    type="number"
-                    step="any"
-                    placeholder="Quantity"
-                    className="col-span-1 bg-background/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    value={formQty}
-                    onChange={e => setFormQty(e.target.value)}
-                    required
-                />
-                <input
-                    type="number"
-                    step="any"
-                    placeholder="Avg Cost $"
-                    className="col-span-1 bg-background/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    value={formPrice}
-                    onChange={e => setFormPrice(e.target.value)}
-                    required
-                />
+            <div className="mb-6 border-b border-border pb-4 flex justify-between items-center">
+                <p className="text-sm text-muted-foreground font-medium">Add manual positions to simulate long-term tracking capability.</p>
                 <button
-                    type="submit"
-                    className="col-span-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors"
+                    onClick={() => setShowAddForm(!showAddForm)}
+                    className="text-sm font-semibold bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors border border-white/10"
                 >
-                    Add Position
+                    {showAddForm ? 'Cancel' : '+ New Position'}
                 </button>
-            </form>
+            </div>
+
+            {showAddForm && (
+                <form onSubmit={handleAdd} className="grid grid-cols-5 gap-4 mb-8 bg-black/20 p-4 rounded-xl border border-white/5">
+                    <input
+                        type="text"
+                        placeholder="Symbol (e.g. AAPL or BTC)"
+                        className="col-span-1 bg-background/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 uppercase"
+                        value={formSymbol}
+                        onChange={e => setFormSymbol(e.target.value.toUpperCase())}
+                        required
+                    />
+                    <select
+                        value={formAssetType}
+                        onChange={e => setFormAssetType(e.target.value as 'STOCK' | 'CRYPTO')}
+                        className="col-span-1 bg-background/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="STOCK">Stock</option>
+                        <option value="CRYPTO">Crypto</option>
+                    </select>
+                    <input
+                        type="number"
+                        step="any"
+                        placeholder="Quantity"
+                        min="0.00000001"
+                        className="col-span-1 bg-background/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={formQty}
+                        onChange={e => setFormQty(e.target.value)}
+                        required
+                    />
+                    <input
+                        type="number"
+                        step="any"
+                        placeholder="Avg Cost $"
+                        min="0"
+                        className="col-span-1 bg-background/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={formPrice}
+                        onChange={e => setFormPrice(e.target.value)}
+                        required
+                    />
+                    <button
+                        type="submit"
+                        className="col-span-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors"
+                    >
+                        Save
+                    </button>
+                </form>
+            )}
 
             {loading ? (
                 <div className="animate-pulse space-y-4">

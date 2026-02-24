@@ -3,6 +3,7 @@ import { BinanceProvider } from './providers/binance';
 import { FinnhubService } from './finnhub';
 import { FinnhubProvider } from './providers/finnhub';
 import { prisma } from './cache';
+import { toDateString } from '../utils/date-helpers';
 
 export class MarketData {
 
@@ -68,7 +69,7 @@ export class MarketData {
 
         if (!isIntraday) {
             cutoff.setDate(cutoff.getDate() - days);
-            const cutoffDate = cutoff.toISOString().split('T')[0];
+            const cutoffDate = toDateString(cutoff);
 
             const rows = await prisma.priceHistory.findMany({
                 where: { symbol, assetType, date: { gte: cutoffDate } },
@@ -133,6 +134,9 @@ export class MarketData {
                 '3m': { interval: '1d', limit: 90 },
                 '6m': { interval: '1d', limit: 180 },
                 '1y': { interval: '1d', limit: 365 },
+                '2y': { interval: '1d', limit: 730 },
+                '3y': { interval: '1d', limit: 1000 }, // Binance maxes closely
+                '5y': { interval: '1d', limit: 1000 },
             };
             const config = map[rangeStr] || map['6m'];
             return await BinanceProvider.getCandles(symbol, config.interval, config.limit);
@@ -150,6 +154,7 @@ export class MarketData {
                 else if (rangeStr === '6m') fromLimit = toLimit - (180 * 24 * 60 * 60);
                 else if (rangeStr === '1y') fromLimit = toLimit - (365 * 24 * 60 * 60);
                 else if (rangeStr === '2y') fromLimit = toLimit - (730 * 24 * 60 * 60);
+                else if (rangeStr === '3y') fromLimit = toLimit - (1095 * 24 * 60 * 60);
                 else if (rangeStr === '5y') fromLimit = toLimit - (1825 * 24 * 60 * 60);
                 else fromLimit = toLimit - (180 * 24 * 60 * 60); // Default 6m
 
@@ -205,8 +210,8 @@ export class MarketData {
     static async getNews(symbol: string, assetType: 'STOCK' | 'CRYPTO') {
         if (assetType === 'CRYPTO') return [];
 
-        const toDate = new Date().toISOString().split('T')[0];
-        const fromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const toDate = toDateString();
+        const fromDate = toDateString(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
 
         try {
             return await FinnhubProvider.getNews(symbol, fromDate, toDate);

@@ -1,7 +1,52 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy, Info } from 'lucide-react';
 import { AccountProfile } from '../components/AccountProfile';
+
+export const RISK_PROFILES: Record<string, { name: string, description: string, req: string, screener: any, predict: any }> = {
+    CONSERVATIVE: {
+        name: 'Conservative Profile',
+        description: 'Capital Preservation Focus',
+        req: 'CONSERVATIVE',
+        screener: { volatilityThreshold: 20, drawdownThreshold: 10, volatilityPenalty: 25, drawdownPenalty: 30, trendStrengthReward: 2, trendStrengthPenalty: 10 },
+        predict: { rsiOverbought: 65, rsiOversold: 35, highVolatilityThreshold: 30, severeDrawdownThreshold: 0.15 }
+    },
+    MODERATELY_CONSERVATIVE: {
+        name: 'Moderately Conservative Profile',
+        description: 'Low Risk',
+        req: 'MODERATELY_CONSERVATIVE',
+        screener: { volatilityThreshold: 30, drawdownThreshold: 15, volatilityPenalty: 20, drawdownPenalty: 25, trendStrengthReward: 4, trendStrengthPenalty: 8 },
+        predict: { rsiOverbought: 70, rsiOversold: 30, highVolatilityThreshold: 40, severeDrawdownThreshold: 0.20 }
+    },
+    MODERATE: {
+        name: 'Moderate Profile',
+        description: 'Balanced',
+        req: 'MODERATE',
+        screener: { volatilityThreshold: 40, drawdownThreshold: 20, volatilityPenalty: 15, drawdownPenalty: 20, trendStrengthReward: 6, trendStrengthPenalty: 6 },
+        predict: { rsiOverbought: 70, rsiOversold: 30, highVolatilityThreshold: 50, severeDrawdownThreshold: 0.25 }
+    },
+    MODERATELY_AGGRESSIVE: {
+        name: 'Moderately Aggressive Profile',
+        description: 'Growth Focus',
+        req: 'MODERATELY_AGGRESSIVE',
+        screener: { volatilityThreshold: 55, drawdownThreshold: 28, volatilityPenalty: 10, drawdownPenalty: 12, trendStrengthReward: 8, trendStrengthPenalty: 4 },
+        predict: { rsiOverbought: 75, rsiOversold: 25, highVolatilityThreshold: 60, severeDrawdownThreshold: 0.35 }
+    },
+    AGGRESSIVE: {
+        name: 'Aggressive Profile',
+        description: 'High Volatility Tolerance',
+        req: 'AGGRESSIVE',
+        screener: { volatilityThreshold: 70, drawdownThreshold: 35, volatilityPenalty: 5, drawdownPenalty: 5, trendStrengthReward: 10, trendStrengthPenalty: 2 },
+        predict: { rsiOverbought: 80, rsiOversold: 20, highVolatilityThreshold: 75, severeDrawdownThreshold: 0.45 }
+    },
+    SPECULATIVE: {
+        name: 'Speculative Profile',
+        description: 'Maximum Risk Tolerance',
+        req: 'SPECULATIVE',
+        screener: { volatilityThreshold: 100, drawdownThreshold: 60, volatilityPenalty: 0, drawdownPenalty: 0, trendStrengthReward: 15, trendStrengthPenalty: 0 },
+        predict: { rsiOverbought: 90, rsiOversold: 15, highVolatilityThreshold: 90, severeDrawdownThreshold: 0.60 }
+    }
+};
 
 export default function Settings() {
     const [configName, setConfigName] = useState('');
@@ -78,49 +123,10 @@ export default function Settings() {
             let finalizedJson = analysisConfigJson;
             let name = 'Custom Advanced';
             if (analysisMode === 'BASIC') {
-                switch (selectedRiskProfile) {
-                    case 'CONSERVATIVE':
-                        name = 'Conservative Profile';
-                        finalizedJson = JSON.stringify({
-                            screener: { volatilityThreshold: 20, drawdownThreshold: 10, volatilityPenalty: 25, drawdownPenalty: 30, trendStrengthReward: 2, trendStrengthPenalty: 10 },
-                            predict: { rsiOverbought: 65, rsiOversold: 35, highVolatilityThreshold: 30, severeDrawdownThreshold: 0.15 }
-                        });
-                        break;
-                    case 'MODERATELY_CONSERVATIVE':
-                        name = 'Moderately Conservative Profile';
-                        finalizedJson = JSON.stringify({
-                            screener: { volatilityThreshold: 30, drawdownThreshold: 15, volatilityPenalty: 20, drawdownPenalty: 25, trendStrengthReward: 4, trendStrengthPenalty: 8 },
-                            predict: { rsiOverbought: 70, rsiOversold: 30, highVolatilityThreshold: 40, severeDrawdownThreshold: 0.20 }
-                        });
-                        break;
-                    case 'MODERATE':
-                        name = 'Moderate Profile';
-                        finalizedJson = JSON.stringify({
-                            screener: { volatilityThreshold: 40, drawdownThreshold: 20, volatilityPenalty: 15, drawdownPenalty: 20, trendStrengthReward: 6, trendStrengthPenalty: 6 },
-                            predict: { rsiOverbought: 70, rsiOversold: 30, highVolatilityThreshold: 50, severeDrawdownThreshold: 0.25 }
-                        });
-                        break;
-                    case 'MODERATELY_AGGRESSIVE':
-                        name = 'Moderately Aggressive Profile';
-                        finalizedJson = JSON.stringify({
-                            screener: { volatilityThreshold: 55, drawdownThreshold: 28, volatilityPenalty: 10, drawdownPenalty: 12, trendStrengthReward: 8, trendStrengthPenalty: 4 },
-                            predict: { rsiOverbought: 75, rsiOversold: 25, highVolatilityThreshold: 60, severeDrawdownThreshold: 0.35 }
-                        });
-                        break;
-                    case 'AGGRESSIVE':
-                        name = 'Aggressive Profile';
-                        finalizedJson = JSON.stringify({
-                            screener: { volatilityThreshold: 70, drawdownThreshold: 35, volatilityPenalty: 5, drawdownPenalty: 5, trendStrengthReward: 10, trendStrengthPenalty: 2 },
-                            predict: { rsiOverbought: 80, rsiOversold: 20, highVolatilityThreshold: 75, severeDrawdownThreshold: 0.45 }
-                        });
-                        break;
-                    case 'SPECULATIVE':
-                        name = 'Speculative Profile';
-                        finalizedJson = JSON.stringify({
-                            screener: { volatilityThreshold: 100, drawdownThreshold: 60, volatilityPenalty: 0, drawdownPenalty: 0, trendStrengthReward: 15, trendStrengthPenalty: 0 },
-                            predict: { rsiOverbought: 90, rsiOversold: 15, highVolatilityThreshold: 90, severeDrawdownThreshold: 0.60 }
-                        });
-                        break;
+                const profile = RISK_PROFILES[selectedRiskProfile];
+                if (profile) {
+                    name = profile.name;
+                    finalizedJson = JSON.stringify({ screener: profile.screener, predict: profile.predict });
                 }
             }
 
@@ -282,14 +288,45 @@ export default function Settings() {
                             <div className="space-y-4">
                                 <label className="block text-sm font-medium text-neutral-400 mb-2">Select a predefined Risk Profile:</label>
                                 <select value={selectedRiskProfile} onChange={e => setSelectedRiskProfile(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500">
-                                    <option value="CONSERVATIVE">Conservative (Capital Preservation Focus)</option>
-                                    <option value="MODERATELY_CONSERVATIVE">Moderately Conservative (Low Risk)</option>
-                                    <option value="MODERATE">Moderate (Balanced)</option>
-                                    <option value="MODERATELY_AGGRESSIVE">Moderately Aggressive (Growth Focus)</option>
-                                    <option value="AGGRESSIVE">Aggressive (High Volatility Tolerance)</option>
-                                    <option value="SPECULATIVE">Speculative (Maximum Risk Tolerance)</option>
+                                    {Object.entries(RISK_PROFILES).map(([key, p]) => (
+                                        <option key={key} value={key}>{p.name.replace(' Profile', '')} ({p.description})</option>
+                                    ))}
                                 </select>
                                 <p className="text-xs text-neutral-500">This modifies backend weights for RSI thresholds, Moving Averages, and Volatility penalties.</p>
+
+                                {selectedRiskProfile && RISK_PROFILES[selectedRiskProfile] && (
+                                    <div className="mt-4 bg-neutral-950 p-4 rounded-lg border border-neutral-800">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <h4 className="text-sm font-semibold text-indigo-400 flex items-center gap-2">
+                                                <Info className="w-4 h-4" /> Active Preset Weights
+                                            </h4>
+                                            <button
+                                                onClick={() => {
+                                                    const p = RISK_PROFILES[selectedRiskProfile];
+                                                    setAnalysisConfigJson(JSON.stringify({ screener: p.screener, predict: p.predict }, null, 2));
+                                                    setAnalysisMode('ADVANCED');
+                                                }}
+                                                className="text-xs flex items-center gap-1 bg-neutral-800 hover:bg-neutral-700 text-white px-2 py-1 rounded transition-colors"
+                                            >
+                                                <Copy className="w-3 h-3" /> Copy to Custom
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 text-xs font-mono text-neutral-300">
+                                            <div>
+                                                <span className="text-neutral-500 block mb-1">=== Screener ===</span>
+                                                {Object.entries(RISK_PROFILES[selectedRiskProfile].screener).map(([k, v]) => (
+                                                    <div key={k} className="flex justify-between"><span className="text-neutral-400">{k}:</span> <span className="text-white">{String(v)}</span></div>
+                                                ))}
+                                            </div>
+                                            <div>
+                                                <span className="text-neutral-500 block mb-1">=== Predict ===</span>
+                                                {Object.entries(RISK_PROFILES[selectedRiskProfile].predict).map(([k, v]) => (
+                                                    <div key={k} className="flex justify-between"><span className="text-neutral-400">{k}:</span> <span className="text-white">{String(v)}</span></div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-4">
@@ -345,21 +382,33 @@ export default function Settings() {
                                     onChange={e => setPromptText(e.target.value)}
                                     className="w-full h-32 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 resize-none"
                                 />
+                                {promptText.includes('{{') && (
+                                    <div className="mt-2 p-3 bg-neutral-900 border border-neutral-800 rounded text-xs text-neutral-400 font-mono whitespace-pre-wrap">
+                                        <div className="font-bold text-neutral-300 mb-1 uppercase tracking-wider text-[10px]">Live Preview</div>
+                                        {promptText
+                                            .replace(/{{ASSET_SYMBOL}}/g, 'AAPL')
+                                            .replace(/{{DATE}}/g, new Date().toISOString().split('T')[0])
+                                            .replace(/{{EVIDENCE_PACK}}/g, '{"vol": 0.2, "rsi": 45, "trend": "BULLISH"}')
+                                            .replace(/{{EVIDENCE_PACK_JSON}}/g, '{"vol": 0.2, "rsi": 45, "trend": "BULLISH"}')}
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="bg-neutral-950 p-4 border border-neutral-800 rounded-lg">
-                                <label className="flex items-center gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={promptOutputMode === 'ACTION_LABELS'}
-                                        onChange={e => setPromptOutputMode(e.target.checked ? 'ACTION_LABELS' : 'TEXT_ONLY')}
-                                        className="w-5 h-5 rounded border-neutral-700 text-indigo-500 focus:ring-indigo-500 bg-neutral-900"
-                                    />
-                                    <span className="font-medium">Enable Action Labels (BUY / WAIT / SELL)</span>
-                                </label>
-                                <p className="text-xs text-neutral-500 mt-2 pl-8">
-                                    <b>Disclaimer:</b> If enabled, the LLM will be forced to output simulated trading signals. This is STRICTLY for educational/demonstrational purposes and is NOT financial advice. Use at your own risk.
-                                </p>
+                            <div className="bg-neutral-950 p-4 border border-neutral-800 rounded-lg space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Output Format:</label>
+                                    <select value={promptOutputMode} onChange={e => setPromptOutputMode(e.target.value)} className="w-full bg-neutral-900 border border-neutral-700 rounded text-white px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+                                        <option value="TEXT_ONLY">Standard Text</option>
+                                        <option value="MARKDOWN">Markdown</option>
+                                        <option value="JSON">Raw JSON</option>
+                                        <option value="ACTION_LABELS">JSON + Action Labels (BUY/WAIT/SELL)</option>
+                                    </select>
+                                </div>
+                                {promptOutputMode === 'ACTION_LABELS' && (
+                                    <p className="text-xs text-rose-400 bg-rose-500/10 p-3 rounded border border-rose-500/20">
+                                        <b>Disclaimer:</b> If enabled, the LLM will be forced to output simulated trading signals. This is STRICTLY for educational/demonstrational purposes and is NOT financial advice. Use at your own risk.
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -382,6 +431,12 @@ export default function Settings() {
                                         </div>
                                         {c.outputMode === 'ACTION_LABELS' && (
                                             <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded uppercase">Action Labels ON</span>
+                                        )}
+                                        {c.outputMode === 'MARKDOWN' && (
+                                            <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded uppercase">Markdown</span>
+                                        )}
+                                        {c.outputMode === 'JSON' && (
+                                            <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded uppercase">JSON</span>
                                         )}
                                     </div>
                                 ))}

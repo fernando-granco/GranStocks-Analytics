@@ -1,5 +1,6 @@
 import { prisma } from './cache';
 import { MarketData } from './market-data';
+import { toDateString } from '../utils/date-helpers';
 import { DailyCandles } from './analysis';
 
 export class PriceHistoryService {
@@ -24,7 +25,7 @@ export class PriceHistoryService {
 
         const txs = [];
         for (let i = 0; i < candles.t.length; i++) {
-            const date = new Date(candles.t[i] * 1000).toISOString().split('T')[0];
+            const date = toDateString(new Date(candles.t[i] * 1000));
             if (date < earliestDate) earliestDate = date;
             if (date > latestDate) latestDate = date;
 
@@ -59,9 +60,18 @@ export class PriceHistoryService {
         }
 
         // Update the SymbolCacheState
-        await prisma.symbolCacheState.update({
+        await prisma.symbolCacheState.upsert({
             where: { assetType_symbol: { assetType, symbol } },
-            data: {
+            update: {
+                status: 'READY',
+                earliestDate: earliestDate !== '9999-99-99' ? earliestDate : null,
+                latestDate: latestDate !== '0000-00-00' ? latestDate : null,
+                barsCount: inserted,
+                lastSuccessAt: new Date()
+            },
+            create: {
+                assetType,
+                symbol,
                 status: 'READY',
                 earliestDate: earliestDate !== '9999-99-99' ? earliestDate : null,
                 latestDate: latestDate !== '0000-00-00' ? latestDate : null,
@@ -84,7 +94,7 @@ export class PriceHistoryService {
 
             // Use the last candle (most recent trading day)
             const i = candles.c.length - 1;
-            const date = new Date(candles.t[i] * 1000).toISOString().split('T')[0];
+            const date = toDateString(new Date(candles.t[i] * 1000));
             await prisma.priceHistory.upsert({
                 where: { assetType_symbol_date: { assetType, symbol, date } },
                 update: {
@@ -149,6 +159,6 @@ export class PriceHistoryService {
             distinct: ['symbol'],
             select: { symbol: true }
         });
-        return result.map(r => r.symbol);
+        return result.map((r: any) => r.symbol);
     }
 }

@@ -157,6 +157,100 @@ export class IndicatorService {
         return { k: currentK, d };
     }
 
+    static computeADX(candles: DailyCandles, period = 14): number | null {
+        const { c, h, l } = candles;
+        if (c.length <= period) return null;
+        const trs = [];
+        const plusDM = [];
+        const minusDM = [];
+
+        for (let i = 1; i < c.length; i++) {
+            const tr = Math.max(h[i] - l[i], Math.abs(h[i] - c[i - 1]), Math.abs(l[i] - c[i - 1]));
+            trs.push(tr);
+            const upMove = h[i] - h[i - 1];
+            const downMove = l[i - 1] - l[i];
+            plusDM.push((upMove > downMove && upMove > 0) ? upMove : 0);
+            minusDM.push((downMove > upMove && downMove > 0) ? downMove : 0);
+        }
+
+        const smoothTR = this.computeEMA(trs, period) || 1;
+        const smoothPlusDM = this.computeEMA(plusDM, period) || 0;
+        const smoothMinusDM = this.computeEMA(minusDM, period) || 0;
+
+        const plusDI = (smoothPlusDM / smoothTR) * 100;
+        const minusDI = (smoothMinusDM / smoothTR) * 100;
+        const dx = Math.abs(plusDI - minusDI) / (plusDI + minusDI + 0.0001) * 100;
+
+        // Return a simplified approximation for ADX based on current DX
+        return dx;
+    }
+
+    static computeOBV(candles: DailyCandles): number | null {
+        const { c, v } = candles;
+        if (!v || c.length < 2) return null;
+        let obv = 0;
+        for (let i = 1; i < c.length; i++) {
+            if (c[i] > c[i - 1]) obv += v[i];
+            else if (c[i] < c[i - 1]) obv -= v[i];
+        }
+        return obv;
+    }
+
+    static computeMFI(candles: DailyCandles, period = 14): number | null {
+        const { h, l, c, v } = candles;
+        if (!v || c.length <= period) return null;
+        let positiveFlow = 0;
+        let negativeFlow = 0;
+        const typicalPrices = c.map((close, i) => (h[i] + l[i] + close) / 3);
+
+        for (let i = c.length - period; i < c.length; i++) {
+            const moneyFlow = typicalPrices[i] * v[i];
+            if (typicalPrices[i] > typicalPrices[i - 1]) positiveFlow += moneyFlow;
+            else if (typicalPrices[i] < typicalPrices[i - 1]) negativeFlow += moneyFlow;
+        }
+        const moneyFlowRatio = positiveFlow / (negativeFlow || 1);
+        return 100 - (100 / (1 + moneyFlowRatio));
+    }
+
+    static computeVWAP(candles: DailyCandles, period = 14): number | null {
+        const { h, l, c, v } = candles;
+        if (!v || c.length < period) return null;
+        let cumulativePq = 0;
+        let cumulativeV = 0;
+        for (let i = c.length - period; i < c.length; i++) {
+            const typicalPrice = (h[i] + l[i] + c[i]) / 3;
+            cumulativePq += typicalPrice * v[i];
+            cumulativeV += v[i];
+        }
+        return cumulativeV ? cumulativePq / cumulativeV : null;
+    }
+
+    static computeROC(data: number[], period = 14): number | null {
+        if (data.length <= period) return null;
+        const current = data[data.length - 1];
+        const past = data[data.length - 1 - period];
+        return ((current - past) / past) * 100;
+    }
+
+    static computeCCI(candles: DailyCandles, period = 20): number | null {
+        const { h, l, c } = candles;
+        if (c.length < period) return null;
+        const typicalPrices = c.map((close, i) => (h[i] + l[i] + close) / 3);
+        const recentTp = typicalPrices.slice(-period);
+        const smaTp = recentTp.reduce((a, b) => a + b, 0) / period;
+        const meanDeviation = recentTp.reduce((acc, val) => acc + Math.abs(val - smaTp), 0) / period;
+        return (typicalPrices[typicalPrices.length - 1] - smaTp) / (0.015 * (meanDeviation || 1));
+    }
+
+    static computeWilliamsR(candles: DailyCandles, period = 14): number | null {
+        const { h, l, c } = candles;
+        if (c.length < period) return null;
+        const highestHigh = Math.max(...h.slice(-period));
+        const lowestLow = Math.min(...l.slice(-period));
+        const currentClose = c[c.length - 1];
+        return ((highestHigh - currentClose) / (highestHigh - lowestLow || 1)) * -100;
+    }
+
     static computeDataQualityScore(candles: DailyCandles): number {
         let score = 100;
         const { c, o, h, l } = candles;
@@ -214,6 +308,14 @@ export class IndicatorService {
 
         const dataQualityScore = this.computeDataQualityScore(candles);
 
+        const adx14 = this.computeADX(candles, 14);
+        const obv = this.computeOBV(candles);
+        const mfi14 = this.computeMFI(candles, 14);
+        const vwap = this.computeVWAP(candles, 14); // 14-day rolling VWAP
+        const roc14 = this.computeROC(closes, 14);
+        const cci20 = this.computeCCI(candles, 20);
+        const williamsR14 = this.computeWilliamsR(candles, 14);
+
         return {
             lastPrice,
             sma20,
@@ -231,7 +333,14 @@ export class IndicatorService {
             bollinger,
             atr14,
             stochastic,
-            dataQualityScore
+            dataQualityScore,
+            adx14,
+            obv,
+            mfi14,
+            vwap,
+            roc14,
+            cci20,
+            williamsR14
         };
     }
 }
@@ -244,8 +353,9 @@ export class PredictionService {
         let score = 0;
         let explanation = [];
         let riskFlags = [];
+        let riskSignals: { category: string, severity: 'HIGH' | 'MEDIUM' | 'LOW', message: string }[] = [];
 
-        const { sma20, sma50, sma20Slope, rsi14, vol20, drawdown90, dataQualityScore } = indicators;
+        const { sma20, sma50, sma20Slope, rsi14, vol20, drawdown90, dataQualityScore, williamsR14, adx14, mfi14, roc14 } = indicators;
 
         // 1. Trend
         if (sma20 && sma50) {
@@ -274,6 +384,7 @@ export class PredictionService {
                 score -= 1;
                 explanation.push(`RSI is overbought (${rsi14.toFixed(1)} > ${config.rsiOverbought}), signaling potential pullback.`);
                 riskFlags.push('Overbought');
+                riskSignals.push({ category: 'Momentum', severity: 'MEDIUM', message: `RSI is overbought (${rsi14.toFixed(1)}), signaling potential pullback.` });
             } else if (rsi14 < config.rsiOversold) {
                 score += 1;
                 explanation.push(`RSI is oversold (${rsi14.toFixed(1)} < ${config.rsiOversold}), signaling potential bounce.`);
@@ -288,6 +399,7 @@ export class PredictionService {
                 score -= 1;
                 explanation.push(`High annualized volatility (${(vol20 * 100).toFixed(1)}% > ${(config.highVolatilityThreshold * 100).toFixed(1)}%) increases uncertainty.`);
                 riskFlags.push('High Volatility');
+                riskSignals.push({ category: 'Volatility', severity: 'HIGH', message: `High annualized volatility (${(vol20 * 100).toFixed(1)}%) increases trading risk.` });
             }
         }
         let confidenceMultiplier = 1.0;
@@ -298,6 +410,19 @@ export class PredictionService {
         if (drawdown90 !== null && drawdown90 > 0.2) {
             confidenceMultiplier *= 0.8;
             riskFlags.push("Asset recently experienced a drawdown > 20%. Downside momentum may persist.");
+            riskSignals.push({ category: 'Price Action', severity: 'HIGH', message: `Asset recently experienced a severe drawdown of ${(drawdown90 * 100).toFixed(1)}%.` });
+        }
+
+        if (williamsR14 !== undefined && williamsR14 !== null) {
+            if (williamsR14 > -20) {
+                riskSignals.push({ category: 'Momentum', severity: 'MEDIUM', message: `Williams %R indicates highly overbought conditions (${williamsR14.toFixed(1)}).` });
+            } else if (williamsR14 < -80) {
+                // Not necessarily a risk, but oversold
+            }
+        }
+
+        if (adx14 !== undefined && adx14 !== null && adx14 > 40) {
+            riskSignals.push({ category: 'Trend Strength', severity: 'LOW', message: `Trend is extremely strong (ADX: ${adx14.toFixed(1)}). Beware of sudden reversals.` });
         }
 
         // Output shaping
@@ -321,7 +446,8 @@ export class PredictionService {
             predictedReturnPct,
             predictedPrice: indicators.lastPrice * (1 + predictedReturnPct / 100),
             confidence,
-            explanationText: summaryText
+            explanationText: summaryText,
+            riskSignals
         };
     }
 
@@ -362,6 +488,14 @@ export class PredictionService {
             parts.push(`Data Quality Score: ${indicators.dataQualityScore} / 100`);
         }
 
+        if (indicators.adx14) parts.push(`ADX (14-day): ${indicators.adx14.toFixed(1)}`);
+        if (indicators.obv) parts.push(`OBV (On-Balance Volume): ${indicators.obv.toLocaleString()}`);
+        if (indicators.mfi14) parts.push(`MFI (14-day): ${indicators.mfi14.toFixed(1)}`);
+        if (indicators.vwap) parts.push(`VWAP (14-day): $${indicators.vwap.toFixed(2)}`);
+        if (indicators.roc14) parts.push(`ROC (14-day): ${indicators.roc14.toFixed(2)}%`);
+        if (indicators.cci20) parts.push(`CCI (20-day): ${indicators.cci20.toFixed(1)}`);
+        if (indicators.williamsR14 !== null) parts.push(`Williams %R (14-day): ${indicators.williamsR14.toFixed(1)}`);
+
         return parts.join('\n');
     }
 }
@@ -396,6 +530,7 @@ export class FirmViewService {
             risk_level: riskLevel,
             annualized_volatility: `${(indicators.vol20 * 100)?.toFixed(1)}%`,
             max_drawdown_90d: `${(indicators.drawdown90 * 100)?.toFixed(1)}%`,
+            williams_r: indicators.williamsR14 !== null ? indicators.williamsR14.toFixed(1) : 'N/A',
             data_quality: `${indicators.dataQualityScore}/100`
         };
 
@@ -403,7 +538,10 @@ export class FirmViewService {
         views['Quant Strategist'] = {
             regime: indicators.vol20 > 0.3 ? 'High Volatility' : 'Low Volatility Trend',
             bollinger_position: indicators.lastPrice > indicators.bollinger?.upper ? 'Outside Upper Band' : indicators.lastPrice < indicators.bollinger?.lower ? 'Outside Lower Band' : 'Inside Bands',
-            stochastic_k: indicators.stochastic?.k?.toFixed(1)
+            stochastic_k: indicators.stochastic?.k?.toFixed(1),
+            adx_trend_strength: indicators.adx14?.toFixed(1) || 'N/A',
+            mfi_money_flow: indicators.mfi14?.toFixed(1) || 'N/A',
+            cci_momentum: indicators.cci20?.toFixed(1) || 'N/A'
         };
 
         return views;

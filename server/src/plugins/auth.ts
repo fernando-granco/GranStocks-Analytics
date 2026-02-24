@@ -33,7 +33,7 @@ export default fp(async (fastify) => {
             if (u.status === 'BANNED') {
                 return reply.status(403).send({ error: 'Forbidden: Account is banned' });
             }
-            if (u.mustChangePassword && !request.url.startsWith('/api/auth')) {
+            if (u.mustChangePassword && !request.url.startsWith('/api/auth') && !request.url.startsWith('/api/user/change-password')) {
                 return reply.status(403).send({ error: 'Forbidden: Password change required', mustChangePassword: true });
             }
 
@@ -52,6 +52,12 @@ export default fp(async (fastify) => {
 
             if (!u) {
                 return reply.status(401).send({ error: 'Unauthorized: User not found' });
+            }
+            if (u.status === 'BANNED') {
+                return reply.status(403).send({ error: 'Forbidden: Account is banned' });
+            }
+            if (u.mustChangePassword) {
+                return reply.status(403).send({ error: 'Forbidden: Password change required', mustChangePassword: true });
             }
             if (u.role !== 'ADMIN') {
                 return reply.status(403).send({ error: 'Forbidden: Admin access only' });

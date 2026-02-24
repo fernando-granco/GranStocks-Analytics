@@ -7,7 +7,9 @@ export default function AdminUsers() {
     const [loading, setLoading] = useState(true);
     const [actionMsg, setActionMsg] = useState('');
     const [activeTab, setActiveTab] = useState<'USERS' | 'AUDIT'>('USERS');
-    const [backfillStatus, setBackfillStatus] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [roleFilter, setRoleFilter] = useState('ALL');
+    const [statusFilter, setStatusFilter] = useState('ALL');
 
     const fetchUsers = () => {
         fetch('/api/admin/users')
@@ -76,22 +78,12 @@ export default function AdminUsers() {
         }
     };
 
-    const handleBackfill = async (universe: string) => {
-        setBackfillStatus(`Backfilling ${universe}...`);
-        try {
-            const res = await fetch('/api/admin/price-history/backfill', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ universe })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Backfill failed');
-            setBackfillStatus(`✓ ${universe} backfill started for ${data.total} symbols — check server logs for progress.`);
-        } catch (e: any) {
-            setBackfillStatus(`✗ ${e.message}`);
-        }
-        setTimeout(() => setBackfillStatus(''), 6000);
-    };
+    const filteredUsers = users.filter(u => {
+        if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
+        if (statusFilter !== 'ALL' && u.status !== statusFilter) return false;
+        if (searchQuery && !u.email.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        return true;
+    });
 
     if (loading) return <div className="p-8 text-neutral-400 animate-pulse">Loading Admin Panel...</div>;
 
@@ -110,25 +102,7 @@ export default function AdminUsers() {
                 </div>
             )}
 
-            {/* Backfill Panel */}
-            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 mb-8">
-                <h2 className="text-lg font-semibold mb-1">Price History Cache</h2>
-                <p className="text-neutral-500 text-sm mb-4">Download 2 years of OHLCV for each universe to enable API-free screener and instant analysis.</p>
-                <div className="flex flex-wrap gap-3">
-                    {(['SP500', 'NASDAQ100', 'CRYPTO'] as const).map(u => (
-                        <button
-                            key={u}
-                            onClick={() => handleBackfill(u)}
-                            className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 font-medium text-sm rounded-lg transition-colors"
-                        >
-                            ↓ Backfill {u}
-                        </button>
-                    ))}
-                </div>
-                {backfillStatus && (
-                    <p className="mt-3 text-sm text-neutral-400">{backfillStatus}</p>
-                )}
-            </div>
+
 
             <div className="flex gap-4 mb-6 border-b border-neutral-800 pb-2">
                 <button
@@ -146,68 +120,91 @@ export default function AdminUsers() {
             </div>
 
             {activeTab === 'USERS' && (
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-x-auto">
-                    <table className="w-full text-sm text-left text-neutral-400">
-                        <thead className="text-xs uppercase bg-neutral-900/50 border-b border-neutral-800 text-neutral-300">
-                            <tr>
-                                <th className="px-6 py-4">Email</th>
-                                <th className="px-6 py-4">Role</th>
-                                <th className="px-6 py-4">Status</th>
-                                <th className="px-6 py-4">Joined / Last Login</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {users.map(u => (
-                                <tr key={u.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/20 transition-colors">
-                                    <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
-                                        {u.email}
-                                        {u.mustChangePassword && <span title="Must change password"><AlertTriangle size={14} className="text-amber-500" /></span>}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 text-xs font-bold rounded ${u.role === 'ADMIN' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-neutral-800 text-neutral-300'}`}>
-                                            {u.role}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 text-xs font-bold rounded ${u.status === 'BANNED' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                                            {u.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs font-mono">
-                                        <div>J: {new Date(u.createdAt).toISOString().split('T')[0]}</div>
-                                        <div className="text-neutral-500">L: {u.lastLoginAt ? new Date(u.lastLoginAt).toISOString().split('T')[0] : 'Never'}</div>
-                                    </td>
-                                    <td className="px-6 py-4 flex gap-2 justify-end">
-                                        {u.status === 'ACTIVE' ? (
-                                            <button onClick={() => handleAction(u.id, 'Ban User', { status: 'BANNED' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-400 rounded transition-colors" title="Ban User">
-                                                <UserX size={16} />
-                                            </button>
-                                        ) : (
-                                            <button onClick={() => handleAction(u.id, 'Unban User', { status: 'ACTIVE' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded transition-colors" title="Unban User">
-                                                <UserCheck size={16} />
-                                            </button>
-                                        )}
-                                        {u.role === 'USER' ? (
-                                            <button onClick={() => handleAction(u.id, 'Promote to Admin', { role: 'ADMIN' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-indigo-400 rounded transition-colors" title="Promote to Admin">
-                                                <ShieldAlert size={16} />
-                                            </button>
-                                        ) : (
-                                            <button onClick={() => handleAction(u.id, 'Demote to User', { role: 'USER' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 rounded transition-colors" title="Demote to User">
-                                                <UserCheck size={16} />
-                                            </button>
-                                        )}
-                                        <button onClick={() => handleForceReset(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 rounded transition-colors" title="Force Password Reset">
-                                            <KeyRound size={16} />
-                                        </button>
-                                        <button onClick={() => handleDelete(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-500 rounded transition-colors" title="Delete User">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </td>
+                <div className="space-y-4">
+                    <div className="flex flex-col md:flex-row gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-xl">
+                        <input
+                            type="text"
+                            placeholder="Search by email..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="flex-1 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500"
+                        />
+                        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                            <option value="ALL">All Roles</option>
+                            <option value="USER">User</option>
+                            <option value="ADMIN">Admin</option>
+                            <option value="SUPERADMIN">Superadmin</option>
+                        </select>
+                        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                            <option value="ALL">All Statuses</option>
+                            <option value="ACTIVE">Active</option>
+                            <option value="BANNED">Banned</option>
+                        </select>
+                    </div>
+
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-x-auto">
+                        <table className="w-full text-sm text-left text-neutral-400">
+                            <thead className="text-xs uppercase bg-neutral-900/50 border-b border-neutral-800 text-neutral-300">
+                                <tr>
+                                    <th className="px-6 py-4">Email</th>
+                                    <th className="px-6 py-4">Role</th>
+                                    <th className="px-6 py-4">Status</th>
+                                    <th className="px-6 py-4">Joined / Last Login</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {filteredUsers.map(u => (
+                                    <tr key={u.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/20 transition-colors">
+                                        <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
+                                            {u.email}
+                                            {u.mustChangePassword && <span title="Must change password"><AlertTriangle size={14} className="text-amber-500" /></span>}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 text-xs font-bold rounded ${u.role === 'ADMIN' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-neutral-800 text-neutral-300'}`}>
+                                                {u.role}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 text-xs font-bold rounded ${u.status === 'BANNED' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                                                {u.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-xs font-mono">
+                                            <div>J: {new Date(u.createdAt).toISOString().split('T')[0]}</div>
+                                            <div className="text-neutral-500">L: {u.lastLoginAt ? new Date(u.lastLoginAt).toISOString().split('T')[0] : 'Never'}</div>
+                                        </td>
+                                        <td className="px-6 py-4 flex gap-2 justify-end">
+                                            {u.status === 'ACTIVE' ? (
+                                                <button onClick={() => handleAction(u.id, 'Ban User', { status: 'BANNED' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-400 rounded transition-colors" title="Ban User">
+                                                    <UserX size={16} />
+                                                </button>
+                                            ) : (
+                                                <button onClick={() => handleAction(u.id, 'Unban User', { status: 'ACTIVE' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-emerald-400 rounded transition-colors" title="Unban User">
+                                                    <UserCheck size={16} />
+                                                </button>
+                                            )}
+                                            {u.role === 'USER' ? (
+                                                <button onClick={() => handleAction(u.id, 'Promote to Admin', { role: 'ADMIN' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-indigo-400 rounded transition-colors" title="Promote to Admin">
+                                                    <ShieldAlert size={16} />
+                                                </button>
+                                            ) : (
+                                                <button onClick={() => handleAction(u.id, 'Demote to User', { role: 'USER' })} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 rounded transition-colors" title="Demote to User">
+                                                    <UserCheck size={16} />
+                                                </button>
+                                            )}
+                                            <button onClick={() => handleForceReset(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 rounded transition-colors" title="Force Password Reset">
+                                                <KeyRound size={16} />
+                                            </button>
+                                            <button onClick={() => handleDelete(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-500 rounded transition-colors" title="Delete User">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 

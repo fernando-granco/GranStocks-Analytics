@@ -70,7 +70,7 @@ export default function Landing() {
                             onClick={() => navigate('/demo')}
                             className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all"
                         >
-                            View Live Demo
+                            View Demo
                         </button>
                     </div>
                 </section>

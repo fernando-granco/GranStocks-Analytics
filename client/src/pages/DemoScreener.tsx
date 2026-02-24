@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, ShieldCheck, BarChart3, Play } from 'lucide-react';
+import { cn } from '../utils';
 
 export default function DemoScreener() {
     const navigate = useNavigate();
@@ -33,29 +34,65 @@ export default function DemoScreener() {
                 <span>DEMO MODE: Background Screener results are frozen and delayed.</span>
             </div>
 
-            <div className="max-w-7xl mx-auto px-4 py-8">
+            <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <button
                     onClick={() => navigate('/demo')}
-                    className="flex items-center gap-2 text-neutral-400 hover:text-white mb-6 transition-colors"
+                    className="flex items-center gap-2 text-neutral-400 hover:text-white mb-2 transition-colors"
                 >
-                    <ArrowLeft size={16} /> Back to Demo Hub
+                    <ArrowLeft size={16} /> Back to Demo Dashboard
                 </button>
 
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold tracking-tight mb-2">Offline Screener Preview</h1>
-                    <p className="text-neutral-500 max-w-2xl">
-                        In production, the GranStocks Background Job runner analyzes your chosen universes every hour to surface the best quantitative candidates based on Return, Volatility, Drawdown, and Trend mechanics.
-                    </p>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                    <div>
+                        <h1 className="text-4xl font-bold flex items-center gap-3">
+                            <BarChart3 className="text-indigo-400" size={32} />
+                            Best Candidates <span className="text-xl font-normal text-neutral-500 ml-2">6M Screener</span>
+                        </h1>
+                        <p className="text-neutral-400 mt-2">Aggregating deterministic signals (Return, Volatility, Drawdown, Trend Strategy).</p>
+                    </div>
+
+                    <button
+                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium rounded-lg flex items-center gap-2 transition-colors shrink-0 opacity-50 cursor-not-allowed"
+                        disabled
+                        title="Disabled in Demo"
+                    >
+                        <Play size={16} /> Force Run Job
+                    </button>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex bg-neutral-900 border border-neutral-800 rounded-xl p-1 w-full max-w-sm">
+                    <button
+                        className={cn(
+                            "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors bg-neutral-800 text-white"
+                        )}
+                    >
+                        S&P 500
+                    </button>
+                    <button
+                        className={cn(
+                            "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors opacity-50 text-neutral-400 cursor-not-allowed"
+                        )}
+                    >
+                        NASDAQ 100
+                    </button>
+                    <button
+                        className={cn(
+                            "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors opacity-50 text-neutral-400 cursor-not-allowed"
+                        )}
+                    >
+                        CRYPTO
+                    </button>
                 </div>
 
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
                     <div className="flex items-center justify-between p-4 border-b border-neutral-800 bg-neutral-900/50">
                         <div className="flex items-center gap-2">
                             <ShieldCheck className="text-emerald-500 w-5 h-5" />
-                            <h2 className="font-semibold">Top SP500 Candidates (Static)</h2>
+                            <h2 className="font-semibold">Top SP500 Candidates</h2>
                         </div>
                         <span className="text-xs font-mono text-neutral-500">
-                            Anchored At: {meta?.snapshotAnchorDate || 'Unknown'}
+                            Snapshot: {meta?.snapshotAnchorDate || 'Unknown'}
                         </span>
                     </div>
 

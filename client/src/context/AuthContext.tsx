@@ -5,6 +5,7 @@ interface User {
     email: string;
     fullName?: string | null;
     role: string;
+    mustChangePassword?: boolean;
 }
 
 interface AuthContextType {

@@ -13,7 +13,7 @@ import z from 'zod';
 export async function registerRoutes(server: FastifyInstance) {
 
     // --- Unified Global Search ---
-    server.get('/api/assets/search', async (req, reply) => {
+    server.get('/api/assets/search', { preValidation: [server.authenticate] }, async (req, reply) => {
         const { q } = req.query as { q?: string };
         if (!q || q.length < 2) return [];
 
@@ -217,7 +217,7 @@ export async function registerRoutes(server: FastifyInstance) {
     // --- AI Configuration ---
     server.post('/api/settings/llm', { preValidation: [server.authenticate] }, async (req, reply) => {
         const schema = z.object({
-            name: z.string(),
+            name: z.string().max(100),
             provider: z.enum(['OPENAI', 'ANTHROPIC', 'GEMINI', 'XAI', 'DEEPSEEK', 'GROQ', 'TOGETHER', 'OPENAI_COMPAT']),
             apiKey: z.string().min(1),
             model: z.string(),
@@ -299,13 +299,22 @@ export async function registerRoutes(server: FastifyInstance) {
     server.post('/api/settings/preferences', { preValidation: [server.authenticate] }, async (req, reply) => {
         const schema = z.object({
             mode: z.enum(['BASIC', 'ADVANCED']).optional(),
-            timezone: z.string().optional(),
+            timezone: z.string().max(100).optional(),
             hideEmptyMarketOverview: z.boolean().optional(),
             hideEmptyCustomUniverses: z.boolean().optional(),
             hideEmptyPortfolio: z.boolean().optional(),
         });
         const updates = schema.parse(req.body);
         const authUser = req.user as { id: string };
+
+        // Validate timezone if provided
+        if (updates.timezone) {
+            try {
+                Intl.DateTimeFormat(undefined, { timeZone: updates.timezone });
+            } catch (e) {
+                return reply.status(400).send({ error: 'Invalid IANA Timezone identifier.' });
+            }
+        }
 
         const prefs = await prisma.userPreferences.upsert({
             where: { userId: authUser.id },
@@ -325,9 +334,9 @@ export async function registerRoutes(server: FastifyInstance) {
     server.post('/api/settings/analysis', { preValidation: [server.authenticate] }, async (req, reply) => {
         const authUser = req.user as { id: string };
         const schema = z.object({
-            name: z.string(),
+            name: z.string().max(100),
             assetTypeScope: z.string().default('BOTH'),
-            configJson: z.string(),
+            configJson: z.string().max(10000),
             isActive: z.boolean().default(true)
         });
         const data = schema.parse(req.body);
@@ -571,7 +580,8 @@ export async function registerRoutes(server: FastifyInstance) {
                 };
 
                 try {
-                    const language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+                    let language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+                    if (!['en', 'pt-BR', 'es', 'fr', 'de'].includes(language)) language = 'en';
                     const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, symbol, date, JSON.stringify(assembledContext, null, 2), 'CONSENSUS', language);
 
                     const narrative = await prisma.aiNarrative.create({

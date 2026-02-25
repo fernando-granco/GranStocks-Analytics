@@ -155,7 +155,7 @@ export default async function universeRoutes(server: FastifyInstance) {
         const schema = z.object({
             name: z.string().min(1).max(50),
             universeType: z.enum(['STOCK', 'CRYPTO']),
-            definitionJson: z.string() // Could be list of symbols or "SECTOR:Technology"
+            definitionJson: z.string().max(50000) // Could be list of symbols or "SECTOR:Technology"
         });
         const { name, universeType, definitionJson } = schema.parse(req.body);
 
@@ -363,7 +363,7 @@ export default async function universeRoutes(server: FastifyInstance) {
         const schema = z.array(z.object({
             symbol: z.string(),
             assetType: z.string()
-        }));
+        })).max(500);
         const newSymbols = schema.parse(req.body);
 
         const universe = await prisma.universe.findFirst({ where: { id, userId: authUser.id } });

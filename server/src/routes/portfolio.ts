@@ -161,7 +161,8 @@ export default async function portfolioRoutes(server: FastifyInstance) {
 
         try {
             const { LLMService } = await import('../services/llm');
-            const language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+            let language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+            if (!['en', 'pt-BR', 'es', 'fr', 'de'].includes(language)) language = 'en';
             const narrative = await LLMService.generateNarrative(config.id, authUser.id, `Group: My Portfolio`, date, promptJson, 'CONSENSUS', language);
             return { narrative };
         } catch (e: any) {

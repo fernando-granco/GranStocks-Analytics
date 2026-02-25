@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import {
     TrendingUp,
     ShieldCheck,
@@ -14,6 +15,12 @@ import {
 export default function Landing() {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { t, i18n } = useTranslation();
+
+    const toggleLanguage = () => {
+        const nextLng = i18n.language === 'en' ? 'pt-BR' : 'en';
+        i18n.changeLanguage(nextLng);
+    };
 
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col font-sans">
@@ -23,6 +30,13 @@ export default function Landing() {
                     <span className="text-xl font-bold tracking-tight text-white">GranStocks<span className="text-blue-500">Analytics</span></span>
                 </div>
                 <div className="flex items-center gap-4">
+                    <button
+                        onClick={toggleLanguage}
+                        className="text-lg hover:opacity-80 transition-opacity"
+                        title="Toggle Language"
+                    >
+                        {i18n.language === 'en' ? '🇺🇸' : '🇧🇷'}
+                    </button>
                     {user ? (
                         <button
                             onClick={() => navigate('/app')}
@@ -53,24 +67,23 @@ export default function Landing() {
                 {/* Hero Section */}
                 <section className="py-20 px-6 text-center max-w-5xl mx-auto">
                     <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                        Institutional-Grade Market Analytics
+                        {t('landing.hero_title')}
                     </h1>
                     <p className="text-lg md:text-xl text-gray-400 mb-10 max-w-3xl mx-auto leading-relaxed">
-                        Deterministic evidence-first analysis for Stocks and Crypto.
-                        Bring Your Own Key (BYOK) for multi-model AI firm consensus, built with zero-trust security.
+                        {t('landing.hero_subtitle')}
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <button
                             onClick={() => navigate('/register')}
                             className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)]"
                         >
-                            Start Analyzing <ArrowRight className="w-5 h-5" />
+                            {t('landing.btn_create_account')} <ArrowRight className="w-5 h-5" />
                         </button>
                         <button
                             onClick={() => navigate('/demo')}
                             className="bg-gray-800 hover:bg-gray-700 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all"
                         >
-                            View Demo
+                            {t('landing.btn_view_demo')}
                         </button>
                     </div>
                 </section>
@@ -82,38 +95,38 @@ export default function Landing() {
 
                             <FeatureCard
                                 icon={<Activity className="w-8 h-8 text-blue-400" />}
-                                title="Market Overview"
-                                description="A unified dashboard displaying your most critical tracked assets, daily performance, and market consensus at a glance."
+                                title={t('landing.features.market_overview.title')}
+                                description={t('landing.features.market_overview.desc')}
                             />
 
                             <FeatureCard
                                 icon={<TrendingUp className="w-8 h-8 text-emerald-400" />}
-                                title="Portfolio Tracking"
-                                description="Monitor your active holdings with real-time P&L calculations, cost basis tracking, and deterministic risk analysis."
+                                title={t('landing.features.portfolio.title')}
+                                description={t('landing.features.portfolio.desc')}
                             />
 
                             <FeatureCard
                                 icon={<Globe className="w-8 h-8 text-purple-400" />}
-                                title="Watchlists & Universes"
-                                description="Organize massive lists of correlated assets into Universes for batch screening, comparative analysis, and sector tracking."
+                                title={t('landing.features.watchlists.title')}
+                                description={t('landing.features.watchlists.desc')}
                             />
 
                             <FeatureCard
                                 icon={<Search className="w-8 h-8 text-orange-400" />}
-                                title="Background Screener"
-                                description="No hardcoded lists. Our background job runner continuously processes entire Universes to find the absolute best candidates based on math."
+                                title={t('landing.features.screener.title')}
+                                description={t('landing.features.screener.desc')}
                             />
 
                             <FeatureCard
                                 icon={<Bot className="w-8 h-8 text-cyan-400" />}
-                                title="AI Narratives & Firm View"
-                                description="Generate Technical, Fundamental, and Risk narratives strictly from deterministic data. Bring Your Own Key (BYOK) for OpenAI, Anthropic, DeepSeek, and more."
+                                title={t('landing.features.ai.title')}
+                                description={t('landing.features.ai.desc')}
                             />
 
                             <FeatureCard
                                 icon={<ShieldCheck className="w-8 h-8 text-amber-400" />}
-                                title="Zero-Trust Admin Dashboard"
-                                description="Complete enterprise-grade user management, invite code systems, and Role-Based Access Control protected behind Fastify middleware."
+                                title={t('landing.features.admin.title')}
+                                description={t('landing.features.admin.desc')}
                             />
 
                         </div>
@@ -122,7 +135,7 @@ export default function Landing() {
             </main>
 
             <footer className="py-8 px-6 border-t border-gray-800 text-center text-gray-500 text-sm">
-                <p>&copy; {new Date().getFullYear()} GranStocks Analytics. Built for advanced market researchers.</p>
+                <p>&copy; {new Date().getFullYear()} {t('landing.footer')}</p>
             </footer>
         </div>
     );

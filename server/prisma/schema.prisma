@@ -173,6 +173,9 @@ model UserPreferences {
   userId    String   @unique
   mode      String   @default("BASIC") // ENUM(BASIC, ADVANCED)
   timezone  String   @default("America/Toronto")
+  hideEmptyMarketOverview Boolean @default(false)
+  hideEmptyCustomUniverses Boolean @default(false)
+  hideEmptyPortfolio Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

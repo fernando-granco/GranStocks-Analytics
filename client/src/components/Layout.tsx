@@ -1,11 +1,17 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { TrendingUp, Settings, LogOut, BarChart3, Globe, LayoutDashboard, BellRing } from 'lucide-react';
+import { TrendingUp, Settings, LogOut, BarChart3, LayoutDashboard, BellRing, Layers } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function Layout() {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, logout } = useAuth();
+    const { t, i18n } = useTranslation();
+    const toggleLanguage = () => {
+        const nextLng = i18n.language === 'en' ? 'pt-BR' : 'en';
+        i18n.changeLanguage(nextLng);
+    };
 
     return (
         <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-indigo-500/30">
@@ -21,55 +27,58 @@ export default function Layout() {
                                 onClick={() => navigate('/app/admin')}
                                 className={`px-3 py-1 text-xs uppercase tracking-wider font-bold border rounded transition-colors ${location.pathname.startsWith('/app/admin') ? 'bg-rose-500/20 text-rose-300 border-rose-500/50' : 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20'}`}
                             >
-                                Admin Panel
+                                {t('nav.admin')}
                             </button>
                         )}
 
                         <button
                             onClick={() => navigate('/app')}
                             className={`flex items-center gap-2 transition-colors ${location.pathname === '/app' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-                            title="Dashboard"
+                            title={t('nav.dashboard')}
                         >
-                            <LayoutDashboard size={20} /> <span className="hidden md:inline font-medium text-sm">Dashboard</span>
-                        </button>
-
-                        <button
-                            onClick={() => navigate('/app/portfolio')}
-                            className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/portfolio' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-                            title="Portfolio"
-                        >
-                            <TrendingUp size={20} /> <span className="hidden md:inline font-medium text-sm">Portfolio</span>
+                            <LayoutDashboard size={20} /> <span className="hidden md:inline font-medium text-sm">{t('nav.dashboard')}</span>
                         </button>
 
                         <button
                             onClick={() => navigate('/app/watchlists')}
                             className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/watchlists' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-                            title="Watchlists"
+                            title={t('nav.watchlists')}
                         >
-                            <Globe size={20} /> <span className="hidden md:inline font-medium text-sm">Watchlists</span>
+                            <Layers size={20} /> <span className="hidden md:inline font-medium text-sm">{t('nav.watchlists')}</span>
                         </button>
 
                         <button
                             onClick={() => navigate('/app/alerts')}
                             className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/alerts' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-                            title="Alerts"
+                            title={t('nav.alerts')}
                         >
-                            <BellRing size={20} /> <span className="hidden md:inline font-medium text-sm">Alerts</span>
+                            <BellRing size={20} /> <span className="hidden md:inline font-medium text-sm">{t('nav.alerts')}</span>
                         </button>
 
                         <button
                             onClick={() => navigate('/app/screener')}
                             className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/screener' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-                            title="Screener"
+                            title={t('nav.screener')}
                         >
-                            <BarChart3 size={20} /> <span className="hidden md:inline font-medium text-sm">Screener</span>
+                            <BarChart3 size={20} /> <span className="hidden md:inline font-medium text-sm">{t('nav.screener')}</span>
                         </button>
+
+                        <div className="h-6 w-px bg-neutral-800 mx-2 hidden sm:block"></div>
+
+                        <button
+                            onClick={toggleLanguage}
+                            className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+                            title="Toggle Language"
+                        >
+                            <span className="text-lg">{i18n.language === 'en' ? '🇺🇸' : '🇧🇷'}</span>
+                        </button>
+
                         <button
                             onClick={() => navigate('/app/settings')}
                             className={`flex items-center gap-2 transition-colors ${location.pathname === '/app/settings' ? 'text-indigo-400' : 'text-neutral-400 hover:text-white'}`}
-                            title="Settings"
+                            title={t('nav.settings')}
                         >
-                            <Settings size={20} /> <span className="hidden md:inline font-medium text-sm">Settings</span>
+                            <Settings size={20} /> <span className="hidden md:inline font-medium text-sm">{t('nav.settings')}</span>
                         </button>
                         <button
                             onClick={async () => {
@@ -78,13 +87,13 @@ export default function Layout() {
                             }}
                             className="text-neutral-400 hover:text-rose-400 transition-colors flex items-center gap-1.5 text-sm font-medium"
                         >
-                            <LogOut size={16} /> <span className="hidden sm:inline">Logout</span>
+                            <LogOut size={16} /> <span className="hidden sm:inline">{t('nav.logout')}</span>
                         </button>
                     </div>
                 </div>
             </nav>
 
-            <main className="max-w-7xl mx-auto px-4 py-8">
+            <main className="max-w-7xl mx-auto px-4 py-8 relative">
                 <Outlet />
             </main>
 

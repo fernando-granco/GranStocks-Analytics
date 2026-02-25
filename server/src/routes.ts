@@ -12,6 +12,47 @@ import z from 'zod';
 
 export async function registerRoutes(server: FastifyInstance) {
 
+    // --- Unified Global Search ---
+    server.get('/api/assets/search', async (req, reply) => {
+        const { q } = req.query as { q?: string };
+        if (!q || q.length < 2) return [];
+
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const dbPath = path.join(__dirname, '..', 'data', 'finance_db.json');
+
+            if (!fs.existsSync(dbPath)) {
+                return [];
+            }
+
+            const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+            const queryUpper = q.toUpperCase();
+
+            // Search by symbol or name
+            const results = data.filter((item: any) =>
+                (item.symbol && item.symbol.toUpperCase().includes(queryUpper)) ||
+                (item.name && item.name.toUpperCase().includes(queryUpper))
+            ).map((item: any) => ({
+                symbol: item.symbol,
+                name: item.name,
+                exchange: item.exchange,
+                type: 'STOCK' // Mock db only has stocks currently
+            }));
+
+            // If it looks like a crypto pair, sneak one in too
+            if (queryUpper.endsWith('USDT') || queryUpper === 'BTC' || queryUpper === 'ETH') {
+                const cryptoSym = queryUpper.endsWith('USDT') ? queryUpper : `${queryUpper}USDT`;
+                results.unshift({ symbol: cryptoSym, name: 'Binance Crypto Pair', exchange: 'CRYPTO', type: 'CRYPTO' });
+            }
+
+            return results.slice(0, 50); // Hard cap for UI performance
+        } catch (e) {
+            console.error('Search error', e);
+            return [];
+        }
+    });
+
     // --- Tracked Asset Selection ---
     server.post('/api/tracked-assets', { preValidation: [server.authenticate] }, async (req, reply) => {
         const schema = z.object({
@@ -234,16 +275,25 @@ export async function registerRoutes(server: FastifyInstance) {
 
         if (!prefs) {
             prefs = await prisma.userPreferences.create({
-                data: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto' }
+                data: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', hideEmptyMarketOverview: false, hideEmptyCustomUniverses: false, hideEmptyPortfolio: false }
             });
         }
-        return { mode: prefs.mode, timezone: prefs.timezone };
+        return {
+            mode: prefs.mode,
+            timezone: prefs.timezone,
+            hideEmptyMarketOverview: prefs.hideEmptyMarketOverview,
+            hideEmptyCustomUniverses: prefs.hideEmptyCustomUniverses,
+            hideEmptyPortfolio: prefs.hideEmptyPortfolio
+        };
     });
 
     server.post('/api/settings/preferences', { preValidation: [server.authenticate] }, async (req, reply) => {
         const schema = z.object({
             mode: z.enum(['BASIC', 'ADVANCED']).optional(),
-            timezone: z.string().optional()
+            timezone: z.string().optional(),
+            hideEmptyMarketOverview: z.boolean().optional(),
+            hideEmptyCustomUniverses: z.boolean().optional(),
+            hideEmptyPortfolio: z.boolean().optional(),
         });
         const updates = schema.parse(req.body);
         const authUser = req.user as { id: string };
@@ -254,7 +304,13 @@ export async function registerRoutes(server: FastifyInstance) {
             create: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', ...updates }
         });
 
-        return { mode: prefs.mode, timezone: prefs.timezone };
+        return {
+            mode: prefs.mode,
+            timezone: prefs.timezone,
+            hideEmptyMarketOverview: prefs.hideEmptyMarketOverview,
+            hideEmptyCustomUniverses: prefs.hideEmptyCustomUniverses,
+            hideEmptyPortfolio: prefs.hideEmptyPortfolio
+        };
     });
 
     server.post('/api/settings/analysis', { preValidation: [server.authenticate] }, async (req, reply) => {
@@ -494,7 +550,8 @@ export async function registerRoutes(server: FastifyInstance) {
                 };
 
                 try {
-                    const narrativeText = await LLMService.generateNarrative(configId, authUser.id, symbol, date, JSON.stringify(assembledContext, null, 2));
+                    const language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+                    const narrativeText = await LLMService.generateNarrative(configId, authUser.id, symbol, date, JSON.stringify(assembledContext, null, 2), 'CONSENSUS', language);
 
                     const config = await prisma.userLLMConfig.findUnique({ where: { id: configId } });
 

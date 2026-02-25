@@ -35,7 +35,10 @@ async function seedMockDB() {
         { symbol: 'NVO', name: 'Novo Nordisk', exchange: 'NYSE', sector: 'Healthcare', industry: 'Drug Manufacturers—General', country: 'Denmark' },
         { symbol: 'SAP', name: 'SAP SE', exchange: 'NYSE', sector: 'Technology', industry: 'Software—Application', country: 'Germany' },
         { symbol: 'RY', name: 'Royal Bank of Canada', exchange: 'NYSE', sector: 'Financial Services', industry: 'Banks—Diversified', country: 'Canada' },
-        { symbol: 'BHP', name: 'BHP Group', exchange: 'NYSE', sector: 'Basic Materials', industry: 'Other Industrial Metals', country: 'Australia' }
+        { symbol: 'BHP', name: 'BHP Group', exchange: 'NYSE', sector: 'Basic Materials', industry: 'Other Industrial Metals', country: 'Australia' },
+        { symbol: 'PETR4.SA', name: 'Petróleo Brasileiro S.A. - Petrobras', exchange: 'BVMF', sector: 'Energy', industry: 'Oil & Gas Integrated', country: 'Brazil' },
+        { symbol: 'VALE3.SA', name: 'Vale S.A.', exchange: 'BVMF', sector: 'Basic Materials', industry: 'Other Industrial Metals', country: 'Brazil' },
+        { symbol: 'ITUB4.SA', name: 'Itaú Unibanco Holding S.A.', exchange: 'BVMF', sector: 'Financial Services', industry: 'Banks—Regional', country: 'Brazil' }
     ];
 
     fs.writeFileSync(dbPath, JSON.stringify(mockData, null, 2));

@@ -19,6 +19,7 @@ import Watchlists from './pages/Watchlists';
 import Portfolio from './pages/Portfolio';
 import Alerts from './pages/Alerts';
 import UniverseDetail from './pages/UniverseDetail';
+import PortfolioAnalysis from './pages/PortfolioAnalysis';
 import './index.css';
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ export default function App() {
                                     <Route path="admin" element={<AdminDashboard />} />
                                     <Route path="watchlists" element={<Watchlists />} />
                                     <Route path="portfolio" element={<Portfolio />} />
+                                    <Route path="portfolio-analysis" element={<PortfolioAnalysis />} />
                                     <Route path="alerts" element={<Alerts />} />
                                     <Route path="universe/:id" element={<UniverseDetail />} />
                                     <Route path="asset/:assetType/:symbol" element={<AssetDetailWrapper />} />

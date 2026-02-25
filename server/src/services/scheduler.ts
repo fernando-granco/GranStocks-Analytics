@@ -180,11 +180,11 @@ export class DailyJobService {
         }, { timezone: activeTz });
         console.log(`Hourly Screener Refresh Scheduled for 0 * * * * ${activeTz}`);
 
-        // Runs on the 1st of every month at midnight
-        cron.schedule('0 0 1 * *', () => {
-            console.log('Running Monthly Demo Snapshot Rebuild...');
-            DemoService.rebuildDemoSnapshots().catch(console.error);
-        });
-        console.log('Monthly Demo Snapshot Rebuild Scheduled');
+        // Monthly demo snapshot rebuild disabled (demo is frozen on Jan 1, 2026)
+        // cron.schedule('0 0 1 * *', () => {
+        //     console.log('Running Monthly Demo Snapshot Rebuild...');
+        //     DemoService.rebuildDemoSnapshots().catch(console.error);
+        // });
+        // console.log('Monthly Demo Snapshot Rebuild Scheduled');
     }
 }

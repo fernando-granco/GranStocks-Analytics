@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { BarChart3, Play, AlertTriangle, Info, Star } from 'lucide-react';
 import { cn } from '../utils';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export default function Screener() {
     const [universe, setUniverse] = useState<'SP500' | 'NASDAQ100' | 'CRYPTO'>('SP500');
@@ -11,6 +12,7 @@ export default function Screener() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const { data, isLoading } = useQuery({
         queryKey: ['screener', universe],
@@ -96,9 +98,9 @@ export default function Screener() {
                 <div>
                     <h1 className="text-4xl font-bold flex items-center gap-3">
                         <BarChart3 className="text-indigo-400" size={32} />
-                        Best Candidates <span className="text-xl font-normal text-neutral-500 ml-2">6M Screener</span>
+                        {t('screener.title')} <span className="text-xl font-normal text-neutral-500 ml-2">{t('screener.subtitle')}</span>
                     </h1>
-                    <p className="text-neutral-400 mt-2">Aggregating deterministic signals (Return, Volatility, Drawdown, Trend Strategy).</p>
+                    <p className="text-neutral-400 mt-2">{t('screener.desc')}</p>
                 </div>
 
                 {['ADMIN', 'SUPERADMIN'].includes(user?.role || '') && (
@@ -107,7 +109,7 @@ export default function Screener() {
                         disabled={runJobMutation.isPending || data?.state?.status === 'RUNNING'}
                         className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium rounded-lg flex items-center gap-2 transition-colors shrink-0"
                     >
-                        <Play size={16} /> Force Run Job
+                        <Play size={16} /> {t('screener.force_run')}
                     </button>
                 )}
             </div>
@@ -121,7 +123,7 @@ export default function Screener() {
                         universe === 'SP500' ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-200"
                     )}
                 >
-                    S&P 500
+                    {t('screener.tabs.sp500')}
                 </button>
                 <button
                     onClick={() => setUniverse('NASDAQ100')}
@@ -130,7 +132,7 @@ export default function Screener() {
                         universe === 'NASDAQ100' ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-200"
                     )}
                 >
-                    NASDAQ 100
+                    {t('screener.tabs.nasdaq100')}
                 </button>
                 <button
                     onClick={() => setUniverse('CRYPTO')}
@@ -139,7 +141,7 @@ export default function Screener() {
                         universe === 'CRYPTO' ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-200"
                     )}
                 >
-                    CRYPTO (Volume)
+                    {t('screener.tabs.crypto')}
                 </button>
             </div>
 
@@ -148,7 +150,7 @@ export default function Screener() {
                 <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-4 h-4 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
-                        <span className="text-indigo-400 font-medium">Screener job is currently running on the server...</span>
+                        <span className="text-indigo-400 font-medium">{t('screener.run_state.running')}</span>
                     </div>
                     <div className="text-indigo-300 font-mono text-sm">
                         {data.state.cursorIndex} / {data.state.total}

@@ -2,10 +2,17 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, TrendingDown, AlertTriangle, Activity, Star, Play, Blocks } from 'lucide-react';
 import { cn } from '../utils';
+import { useTranslation } from 'react-i18next';
 
 export default function DemoDashboard() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
+    const { t, i18n } = useTranslation();
+
+    const toggleLanguage = () => {
+        const nextLng = i18n.language === 'en' ? 'pt-BR' : 'en';
+        i18n.changeLanguage(nextLng);
+    };
 
     // Mock dashboard view for demo
     const portfolioAssets = [
@@ -43,7 +50,7 @@ export default function DemoDashboard() {
         <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans">
             <div className="bg-amber-500/20 border-b border-amber-500/30 text-amber-200 p-2 text-center text-sm font-medium flex items-center justify-center gap-2">
                 <AlertTriangle size={16} />
-                <span>DEMO MODE: Static snapshot locked on January 1, 2026. Data is completely offline.</span>
+                <span>{t('demo.warning')}</span>
             </div>
 
             <nav className="border-b border-neutral-800 bg-neutral-900/50 backdrop-blur-xl sticky top-0 z-50">
@@ -53,8 +60,15 @@ export default function DemoDashboard() {
                         <span className="font-bold text-lg tracking-tight">GranStocks <span className="text-neutral-500 font-normal">Demo</span></span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <button onClick={() => navigate('/demo/screener')} className="text-sm text-neutral-400 hover:text-white transition-colors">Screener Preview</button>
-                        <button onClick={() => navigate('/register')} className="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-md transition-colors font-medium">Create Live Account</button>
+                        <button
+                            onClick={toggleLanguage}
+                            className="bg-neutral-800 hover:bg-neutral-700 text-white p-2 rounded-lg transition-colors flex items-center justify-center"
+                            title="Toggle Language"
+                        >
+                            <span className="text-xl leading-none">{i18n.language === 'en' ? '🇺🇸' : '🇧🇷'}</span>
+                        </button>
+                        <button onClick={() => navigate('/demo/screener')} className="text-sm text-neutral-400 hover:text-white transition-colors">{t('demo.preview')}</button>
+                        <button onClick={() => navigate('/register')} className="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-md transition-colors font-medium">{t('landing.btn_create_account')}</button>
                     </div>
                 </div>
             </nav>
@@ -62,8 +76,8 @@ export default function DemoDashboard() {
             <main className="max-w-7xl mx-auto px-4 py-8 space-y-6">
 
                 <div className="mb-2">
-                    <p className="text-neutral-400 font-medium">Welcome, Demo User</p>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">Overview Dashboard</h1>
+                    <p className="text-neutral-400 font-medium">{t('dashboard.welcome')}, Demo User</p>
+                    <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">{t('dashboard.title')}</h1>
                 </div>
 
                 {/* Simulated Portfolio Summary Widget */}
@@ -98,12 +112,12 @@ export default function DemoDashboard() {
                 </div>
 
                 <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-2xl font-bold tracking-tight">Market Overview</h2>
+                    <h2 className="text-2xl font-bold tracking-tight">{t('dashboard.market_overview')}</h2>
                     <button
                         className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-colors opacity-50 cursor-not-allowed"
                         title="Disabled in Demo"
                     >
-                        <Play size={16} /> Run Daily Job
+                        <Play size={16} /> {t('dashboard.run_daily_job')}
                     </button>
                 </div>
 

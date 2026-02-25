@@ -53,13 +53,18 @@ export async function validateBaseUrl(urlStr: string | null | undefined, isCompa
 }
 
 export interface LLMProvider {
-    generateNarrative(prompt: string): Promise<string>;
+    generateNarrative(prompt: string, language?: string): Promise<string>;
 }
 
 export class OpenAIProvider implements LLMProvider {
     constructor(private apiKey: string, private model: string = "gpt-4o-mini", private baseUrl?: string) { }
 
-    async generateNarrative(prompt: string): Promise<string> {
+    async generateNarrative(prompt: string, language: string = 'en'): Promise<string> {
+        let systemPrompt = 'You are a financial analyst generating a short daily narrative based ONLY on provided deterministic indicators.';
+        if (language === 'pt-BR') {
+            systemPrompt += ' IMPORTANT: Your final output MUST be evaluated and written in fluent Brazilian Portuguese (pt-BR).';
+        }
+
         const url = this.baseUrl ? `${this.baseUrl}/chat/completions` : 'https://api.openai.com/v1/chat/completions';
         const res = await fetch(url, {
             method: 'POST',
@@ -70,7 +75,7 @@ export class OpenAIProvider implements LLMProvider {
             body: JSON.stringify({
                 model: this.model,
                 messages: [
-                    { role: 'system', content: 'You are a financial analyst generating a short daily narrative based ONLY on provided deterministic indicators.' },
+                    { role: 'system', content: systemPrompt },
                     { role: 'user', content: prompt }
                 ],
                 max_tokens: 300
@@ -82,14 +87,19 @@ export class OpenAIProvider implements LLMProvider {
             throw new Error(`OpenAI API Error (${res.status}): ${errBody}`);
         }
         const data = await res.json();
-        return data.choices[0].message.content + "\n\n(AI-generated commentary - simulation only)";
+        return data.choices[0].message.content;
     }
 }
 
 export class GeminiProvider implements LLMProvider {
     constructor(private apiKey: string, private model: string = "gemini-1.5-flash") { }
 
-    async generateNarrative(prompt: string): Promise<string> {
+    async generateNarrative(prompt: string, language: string = 'en'): Promise<string> {
+        let systemPrompt = 'You are a financial analyst generating a short daily narrative based ONLY on provided deterministic indicators.';
+        if (language === 'pt-BR') {
+            systemPrompt += ' IMPORTANT: Your final output MUST be evaluated and written in fluent Brazilian Portuguese (pt-BR).';
+        }
+
         // Simple fetch to Gemini REST API
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
         const res = await fetch(url, {
@@ -97,7 +107,7 @@ export class GeminiProvider implements LLMProvider {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 system_instruction: {
-                    parts: [{ text: 'You are a financial analyst generating a short daily narrative based ONLY on provided deterministic indicators.' }]
+                    parts: [{ text: systemPrompt }]
                 },
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { maxOutputTokens: 300 }
@@ -110,14 +120,19 @@ export class GeminiProvider implements LLMProvider {
         }
         const data = await res.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated";
-        return text + "\n\n(AI-generated commentary - simulation only)";
+        return text;
     }
 }
 
 export class AnthropicProvider implements LLMProvider {
     constructor(private apiKey: string, private model: string = "claude-3-haiku-20240307") { }
 
-    async generateNarrative(prompt: string): Promise<string> {
+    async generateNarrative(prompt: string, language: string = 'en'): Promise<string> {
+        let systemPrompt = 'You are a financial analyst generating a short daily narrative based ONLY on provided deterministic indicators.';
+        if (language === 'pt-BR') {
+            systemPrompt += ' IMPORTANT: Your final output MUST be evaluated and written in fluent Brazilian Portuguese (pt-BR).';
+        }
+
         const url = 'https://api.anthropic.com/v1/messages';
         const res = await fetch(url, {
             method: 'POST',
@@ -129,7 +144,7 @@ export class AnthropicProvider implements LLMProvider {
             body: JSON.stringify({
                 model: this.model,
                 max_tokens: 300,
-                system: 'You are a financial analyst generating a short daily narrative based ONLY on provided deterministic indicators.',
+                system: systemPrompt,
                 messages: [
                     { role: 'user', content: prompt }
                 ]
@@ -141,7 +156,7 @@ export class AnthropicProvider implements LLMProvider {
             throw new Error(`Anthropic API Error (${res.status}): ${errBody}`);
         }
         const data = await res.json();
-        return data.content[0].text + "\n\n(AI-generated commentary - simulation only)";
+        return data.content[0].text;
     }
 }
 
@@ -185,7 +200,7 @@ export class LLMService {
         }
     }
 
-    static async generateNarrative(configId: string, userId: string, symbol: string | null, date: string, promptDataJson: string, role: string = 'CONSENSUS'): Promise<string> {
+    static async generateNarrative(configId: string, userId: string, symbol: string | null, date: string, promptDataJson: string, role: string = 'CONSENSUS', language: string = 'en'): Promise<string> {
         const provider = await LLMService.getProviderInstance(configId, userId);
 
         const config = await prisma.userLLMConfig.findFirst({ where: { id: configId, userId } });
@@ -221,7 +236,7 @@ export class LLMService {
             prompt += '\n\nYou MUST return ONLY valid JSON in this exact structure: { "action": "BUY" | "WAIT" | "SELL", "narrative": "your strictly educational analysis" }';
         }
 
-        let narrative = await provider.generateNarrative(prompt);
+        let narrative = await provider.generateNarrative(prompt, language);
 
         // Strip out any trailing simulation text for JSON mode
         const simulationText = "\n\n(AI-generated commentary - simulation only)";
@@ -237,7 +252,7 @@ export class LLMService {
             } catch (e) {
                 // Repair
                 const repairPrompt = `The following JSON is invalid. Fix it to be exactly { "action": "BUY" | "WAIT" | "SELL", "narrative": "..." } with valid JSON syntax. Return ONLY the JSON.\n\n${cleanNarrative}`;
-                let repaired = await provider.generateNarrative(repairPrompt);
+                let repaired = await provider.generateNarrative(repairPrompt, language);
                 if (repaired.endsWith(simulationText)) repaired = repaired.substring(0, repaired.length - simulationText.length);
                 repaired = repaired.replace(/```json/g, '').replace(/```/g, '').trim();
 

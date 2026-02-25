@@ -78,5 +78,29 @@
     "sector": "Basic Materials",
     "industry": "Other Industrial Metals",
     "country": "Australia"
+  },
+  {
+    "symbol": "PETR4.SA",
+    "name": "Petróleo Brasileiro S.A. - Petrobras",
+    "exchange": "BVMF",
+    "sector": "Energy",
+    "industry": "Oil & Gas Integrated",
+    "country": "Brazil"
+  },
+  {
+    "symbol": "VALE3.SA",
+    "name": "Vale S.A.",
+    "exchange": "BVMF",
+    "sector": "Basic Materials",
+    "industry": "Other Industrial Metals",
+    "country": "Brazil"
+  },
+  {
+    "symbol": "ITUB4.SA",
+    "name": "Itaú Unibanco Holding S.A.",
+    "exchange": "BVMF",
+    "sector": "Financial Services",
+    "industry": "Banks—Regional",
+    "country": "Brazil"
   }
 ]

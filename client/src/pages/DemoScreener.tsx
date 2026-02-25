@@ -2,12 +2,19 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertTriangle, ShieldCheck, BarChart3, Play } from 'lucide-react';
 import { cn } from '../utils';
+import { useTranslation } from 'react-i18next';
 
 export default function DemoScreener() {
     const navigate = useNavigate();
     const [meta, setMeta] = useState<any>(null);
     const [candidates, setCandidates] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const { t, i18n } = useTranslation();
+
+    const toggleLanguage = () => {
+        const nextLng = i18n.language === 'en' ? 'pt-BR' : 'en';
+        i18n.changeLanguage(nextLng);
+    };
 
     useEffect(() => {
         // Fetch SP500 demo screener
@@ -31,24 +38,33 @@ export default function DemoScreener() {
         <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans pb-20">
             <div className="bg-amber-500/20 border-b border-amber-500/30 text-amber-200 p-2 text-center text-sm font-medium flex items-center justify-center gap-2">
                 <AlertTriangle size={16} />
-                <span>DEMO MODE: Background Screener results are frozen and delayed.</span>
+                <span>{t('demo.warning')}</span>
             </div>
 
             <div className="max-w-7xl mx-auto px-4 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <button
-                    onClick={() => navigate('/demo')}
-                    className="flex items-center gap-2 text-neutral-400 hover:text-white mb-2 transition-colors"
-                >
-                    <ArrowLeft size={16} /> Back to Demo Dashboard
-                </button>
+                <div className="flex items-center justify-between mb-2">
+                    <button
+                        onClick={() => navigate('/demo')}
+                        className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+                    >
+                        <ArrowLeft size={16} /> {t('demo.back')}
+                    </button>
+                    <button
+                        onClick={toggleLanguage}
+                        className="bg-neutral-800 hover:bg-neutral-700 text-white p-2 rounded-lg transition-colors flex items-center justify-center"
+                        title="Toggle Language"
+                    >
+                        <span className="text-xl leading-none">{i18n.language === 'en' ? '🇺🇸' : '🇧🇷'}</span>
+                    </button>
+                </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                     <div>
                         <h1 className="text-4xl font-bold flex items-center gap-3">
                             <BarChart3 className="text-indigo-400" size={32} />
-                            Best Candidates <span className="text-xl font-normal text-neutral-500 ml-2">6M Screener</span>
+                            {t('screener.title')} <span className="text-xl font-normal text-neutral-500 ml-2">{t('screener.subtitle')}</span>
                         </h1>
-                        <p className="text-neutral-400 mt-2">Aggregating deterministic signals (Return, Volatility, Drawdown, Trend Strategy).</p>
+                        <p className="text-neutral-400 mt-2">{t('screener.desc')}</p>
                     </div>
 
                     <button
@@ -56,7 +72,7 @@ export default function DemoScreener() {
                         disabled
                         title="Disabled in Demo"
                     >
-                        <Play size={16} /> Force Run Job
+                        <Play size={16} /> {t('screener.force_run')}
                     </button>
                 </div>
 
@@ -67,21 +83,21 @@ export default function DemoScreener() {
                             "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors bg-neutral-800 text-white"
                         )}
                     >
-                        S&P 500
+                        {t('screener.tabs.sp500')}
                     </button>
                     <button
                         className={cn(
                             "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors opacity-50 text-neutral-400 cursor-not-allowed"
                         )}
                     >
-                        NASDAQ 100
+                        {t('screener.tabs.nasdaq100')}
                     </button>
                     <button
                         className={cn(
                             "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors opacity-50 text-neutral-400 cursor-not-allowed"
                         )}
                     >
-                        CRYPTO
+                        {t('screener.tabs.crypto')}
                     </button>
                 </div>
 

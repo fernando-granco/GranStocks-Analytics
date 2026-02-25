@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2, Copy, Info } from 'lucide-react';
 import { AccountProfile } from '../components/AccountProfile';
+import { useTranslation } from 'react-i18next';
 
 export const RISK_PROFILES: Record<string, { name: string, description: string, req: string, screener: any, predict: any }> = {
     CONSERVATIVE: {
@@ -55,6 +56,7 @@ export default function Settings() {
     const [configModel, setConfigModel] = useState('');
     const [configBaseUrl, setConfigBaseUrl] = useState('');
     const queryClient = useQueryClient();
+    const { t } = useTranslation();
 
     const [activeTab, setActiveTab] = useState<'ACCOUNT' | 'ANALYSIS' | 'PROVIDERS'>('ACCOUNT');
 
@@ -180,7 +182,7 @@ export default function Settings() {
     return (
         <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div>
-                <h1 className="text-3xl font-bold mb-6">Settings</h1>
+                <h1 className="text-3xl font-bold mb-6">{t('settings.title')}</h1>
             </div>
 
             <div className="flex border-b border-neutral-800 mb-6 gap-2">
@@ -188,19 +190,19 @@ export default function Settings() {
                     onClick={() => setActiveTab('ACCOUNT')}
                     className={`px-4 py-2 font-medium ${activeTab === 'ACCOUNT' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300 transition-colors'}`}
                 >
-                    Account Profile
+                    {t('settings.tabs.account')}
                 </button>
                 <button
                     onClick={() => setActiveTab('ANALYSIS')}
                     className={`px-4 py-2 font-medium ${activeTab === 'ANALYSIS' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300 transition-colors'}`}
                 >
-                    Analysis / Prompts
+                    {t('settings.tabs.analysis')}
                 </button>
                 <button
                     onClick={() => setActiveTab('PROVIDERS')}
                     className={`px-4 py-2 font-medium ${activeTab === 'PROVIDERS' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300 transition-colors'}`}
                 >
-                    AI Providers
+                    {t('settings.tabs.providers')}
                 </button>
             </div>
 
@@ -210,8 +212,8 @@ export default function Settings() {
 
             {activeTab === 'PROVIDERS' && (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                    <h3 className="text-xl font-semibold mb-2">BYOK AI Providers</h3>
-                    <p className="text-neutral-500 text-sm mb-6">Securely add your API keys. Keys are AES-256-GCM encrypted on the server. The frontend never sees them.</p>
+                    <h3 className="text-xl font-semibold mb-2">{t('settings.providers.title')}</h3>
+                    <p className="text-neutral-500 text-sm mb-6">{t('settings.providers.desc')}</p>
 
                     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); addConfigMutation.mutate(); }}>
                         <div className="grid grid-cols-2 gap-4">
@@ -276,8 +278,8 @@ export default function Settings() {
             {activeTab === 'ANALYSIS' && (
                 <div className="space-y-8">
                     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                        <h3 className="text-xl font-semibold mb-4">Analysis Settings</h3>
-                        <p className="text-neutral-500 text-sm mb-6">Customize the deterministic algorithms for the Screener and the AI Evidence Packs.</p>
+                        <h3 className="text-xl font-semibold mb-4">{t('settings.analysis.title')}</h3>
+                        <p className="text-neutral-500 text-sm mb-6">{t('settings.analysis.desc')}</p>
 
                         <div className="flex border-b border-neutral-800 mb-6">
                             <button onClick={() => setAnalysisMode('BASIC')} className={`px-4 py-2 font-medium ${analysisMode === 'BASIC' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300'}`}>Basic</button>
@@ -362,8 +364,8 @@ export default function Settings() {
                     </div>
 
                     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                        <h3 className="text-xl font-semibold mb-4">AI Prompts <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded ml-2 uppercase">Advanced</span></h3>
-                        <p className="text-neutral-500 text-sm mb-6">Override the default LLM prompts. Use <code>{`{{EVIDENCE_PACK}}`}</code> or <code>{`{{ASSET_SYMBOL}}`}</code> to inject data.</p>
+                        <h3 className="text-xl font-semibold mb-4">{t('settings.prompts.title')} <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded ml-2 uppercase">Advanced</span></h3>
+                        <p className="text-neutral-500 text-sm mb-6">{t('settings.prompts.desc')}</p>
 
                         <div className="space-y-4">
                             <div>
@@ -400,13 +402,13 @@ export default function Settings() {
                                     type="button"
                                     onClick={() => setPromptOutputMode(prev => prev === 'ACTION_LABELS' ? 'TEXT_ONLY' : 'ACTION_LABELS')}
                                     className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${promptOutputMode === 'ACTION_LABELS'
-                                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                                            : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:bg-neutral-800'
+                                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                                        : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:bg-neutral-800'
                                         }`}
                                 >
                                     <div className="flex flex-col text-left">
-                                        <span className="font-medium">Force Action Labels (BUY/SELL/WAIT)</span>
-                                        <span className="text-xs opacity-70">Instructs the LLM to output a simulated trading decision.</span>
+                                        <span className="font-medium">{t('settings.prompts.force_action_labels')}</span>
+                                        <span className="text-xs opacity-70">{t('settings.prompts.force_action_labels_desc')}</span>
                                     </div>
                                     <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors ${promptOutputMode === 'ACTION_LABELS' ? 'bg-rose-500' : 'bg-neutral-700'}`}>
                                         <div className={`w-4 h-4 rounded-full bg-white transition-transform ${promptOutputMode === 'ACTION_LABELS' ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -414,7 +416,7 @@ export default function Settings() {
                                 </button>
                                 {promptOutputMode === 'ACTION_LABELS' && (
                                     <p className="text-xs text-rose-400 bg-rose-500/10 p-3 rounded border border-rose-500/20">
-                                        <b>Disclaimer:</b> If enabled, the LLM will be forced to output simulated trading signals. This is STRICTLY for educational/demonstrational purposes and is NOT financial advice. Use at your own risk.
+                                        <b>{t('settings.prompts.disclaimer_title')}</b> {t('settings.prompts.disclaimer_body')}
                                     </p>
                                 )}
                             </div>

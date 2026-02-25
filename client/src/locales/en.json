@@ -1,0 +1,157 @@
+{
+    "nav": {
+        "dashboard": "Dashboard",
+        "screener": "Screener",
+        "watchlists": "Watchlists",
+        "alerts": "Alerts",
+        "settings": "Settings",
+        "admin": "Admin",
+        "logout": "Logout",
+        "brand_demo": "Demo",
+        "portfolio": "Portfolio"
+    },
+    "landing": {
+        "hero_badge": "Next-Gen Market Intelligence",
+        "hero_title": "Stop Guessing. Start Computing.",
+        "hero_subtitle": "GranStocks Analytics is a deterministic trading intelligence platform. We combine real-time quantitative screening, institutional-grade risk metrics, and multi-model AI synthesis to keep you ahead of the market.",
+        "btn_create_account": "Create Free Account",
+        "btn_view_demo": "View Demo",
+        "features": {
+            "market_overview": {
+                "title": "Market Overview",
+                "desc": "A unified dashboard displaying your most critical tracked assets, daily performance, and market consensus at a glance."
+            },
+            "portfolio": {
+                "title": "Portfolio Tracking",
+                "desc": "Monitor your active holdings with real-time P&L calculations, cost basis tracking, and deterministic risk analysis."
+            },
+            "watchlists": {
+                "title": "Watchlists & Universes",
+                "desc": "Organize massive lists of correlated assets into Universes for batch screening, comparative analysis, and sector tracking."
+            },
+            "screener": {
+                "title": "Background Screener",
+                "desc": "No hardcoded lists. Our background job runner continuously processes entire Universes to find the absolute best candidates based on math."
+            },
+            "ai": {
+                "title": "AI Narratives & Firm View",
+                "desc": "Generate Technical, Fundamental, and Risk narratives strictly from deterministic data. Bring Your Own Key (BYOK) for OpenAI, Anthropic, DeepSeek, and more."
+            },
+            "admin": {
+                "title": "Zero-Trust Admin Dashboard",
+                "desc": "Complete enterprise-grade user management, invite code systems, and Role-Based Access Control protected behind Fastify middleware."
+            }
+        },
+        "footer": "GranStocks Analytics. Built for advanced market researchers."
+    },
+    "dashboard": {
+        "welcome": "Welcome",
+        "title": "Overview Dashboard",
+        "market_overview": "Market Overview",
+        "run_daily_job": "Run Daily Job",
+        "no_assets": "No assets tracked",
+        "no_assets_desc": "Go to Watchlists to add symbols to your portfolio.",
+        "custom_universes": "Your Custom Universes",
+        "portfolio": {
+            "title": "Total Portfolio Value",
+            "all_time": "All Time",
+            "top_gainer": "Top Gainer",
+            "top_loser": "Top Loser",
+            "add": "Add Position",
+            "symbol": "Symbol",
+            "type": "Type",
+            "entry": "Entry Price",
+            "qty": "Quantity",
+            "submit": "Add Position",
+            "cancel": "Cancel",
+            "headers": {
+                "symbol": "Asset",
+                "price": "Market",
+                "entry": "Entry",
+                "value": "Value",
+                "pnl": "Unrealized P&L",
+                "bias": "Consensus",
+                "actions": "Actions"
+            }
+        },
+        "card": {
+            "bias_bullish": "Bullish Bias",
+            "bias_bearish": "Bearish Bias",
+            "last_price": "Last Price"
+        }
+    },
+    "screener": {
+        "title": "Best Candidates",
+        "subtitle": "6M Screener",
+        "desc": "Aggregating deterministic signals (Return, Volatility, Drawdown, Trend Strategy).",
+        "force_run": "Force Run Job",
+        "tabs": {
+            "sp500": "S&P 500",
+            "nasdaq100": "NASDAQ 100",
+            "crypto": "CRYPTO (Volume)"
+        },
+        "headers": {
+            "rank": "Rank",
+            "symbol": "Symbol",
+            "score": "Score",
+            "metrics": "Metrics",
+            "actions": "Actions"
+        },
+        "run_state": {
+            "running": "Job currently running. Live metrics are calculating...",
+            "running_desc": "Screener jobs usually resolve within 14-45 seconds depending on exchange latencies."
+        }
+    },
+    "settings": {
+        "title": "Account Settings",
+        "profile": "Profile Details",
+        "api_keys": "External API Keys",
+        "llm_provider": "Active LLM Provider",
+        "save": "Save Changes",
+        "tabs": {
+            "account": "Account & Display",
+            "analysis": "Analysis Weights",
+            "providers": "LLM Providers"
+        },
+        "display": {
+            "title": "Display Preferences",
+            "hide_market": "Hide Market Overview if empty",
+            "hide_universes": "Hide Custom Universes if empty",
+            "hide_portfolio": "Hide Portfolio if empty"
+        },
+        "providers": {
+            "title": "LLM Providers",
+            "desc": "Configure your Bring-Your-Own-Key (BYOK) language models here."
+        },
+        "analysis": {
+            "title": "Analysis Weights",
+            "desc": "Configure the deterministic weights used for technical scoring."
+        },
+        "prompts": {
+            "title": "Prompt Templates",
+            "desc": "Customize the prompts used to generate AI narratives.",
+            "force_action_labels": "Force Action Labels",
+            "force_action_labels_desc": "Outputs [BUY], [SELL], or [HOLD] tokens.",
+            "disclaimer_title": "WARNING:",
+            "disclaimer_body": "Action labels are simulated and not financial advice."
+        }
+    },
+    "demo": {
+        "warning": "DEMO MODE: Static snapshot locked on January 1, 2026. Data is completely offline.",
+        "back": "Back to Demo Dashboard",
+        "preview": "Screener Preview"
+    },
+    "search": {
+        "placeholder": "Search symbols, tools, or assets...",
+        "no_results": "No assets found matching",
+        "btn_track": "Track",
+        "btn_buy": "Buy",
+        "btn_save": "Save",
+        "add_to_universe": "Add to Universe",
+        "no_universes": "No custom universes.",
+        "qty": "Quantity",
+        "entry_price": "Entry Price ($)",
+        "confirm": "Confirm",
+        "close": "to close"
+    }
+}

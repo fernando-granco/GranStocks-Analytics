@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
-import { User, Lock, Save } from 'lucide-react';
+import { User, Lock, Save, EyeOff } from 'lucide-react';
 import Select from 'react-select';
+import { usePreferences } from '../context/PreferencesContext';
+import { useTranslation } from 'react-i18next';
 
 // Generate native IANA timezone list
 const TIMEZONES = (Intl as any).supportedValuesOf('timeZone').map((tz: string) => ({ value: tz, label: tz.replace(/_/g, ' ') }));
@@ -14,6 +16,8 @@ export function AccountProfile() {
     const [timezone, setTimezone] = useState('');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
+    const { hideEmptyMarketOverview, hideEmptyCustomUniverses, hideEmptyPortfolio, updatePreferences } = usePreferences();
+    const { t } = useTranslation();
 
     const { data: profile } = useQuery({
         queryKey: ['userProfile'],
@@ -146,6 +150,35 @@ export function AccountProfile() {
                     <button onClick={() => updatePassword.mutate()} disabled={updatePassword.isPending} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition flex-shrink-0">
                         <Save size={16} /> Update Password
                     </button>
+                </div>
+            </div>
+
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+                <h3 className="text-xl font-semibold mb-6 flex items-center gap-2"><EyeOff size={20} className="text-emerald-400" /> {t('settings.display.title', 'Display Preferences')}</h3>
+                <div className="space-y-4 max-w-xl">
+                    <label className="flex items-center justify-between cursor-pointer p-3 bg-black border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors">
+                        <span className="text-sm font-medium text-neutral-300">{t('settings.display.hide_market', 'Hide Market Overview if empty')}</span>
+                        <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors ${hideEmptyMarketOverview ? 'bg-indigo-500' : 'bg-neutral-700'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${hideEmptyMarketOverview ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </div>
+                        <input type="checkbox" className="hidden" checked={hideEmptyMarketOverview} onChange={(e) => updatePreferences({ hideEmptyMarketOverview: e.target.checked })} />
+                    </label>
+
+                    <label className="flex items-center justify-between cursor-pointer p-3 bg-black border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors">
+                        <span className="text-sm font-medium text-neutral-300">{t('settings.display.hide_universes', 'Hide Custom Universes if empty')}</span>
+                        <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors ${hideEmptyCustomUniverses ? 'bg-indigo-500' : 'bg-neutral-700'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${hideEmptyCustomUniverses ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </div>
+                        <input type="checkbox" className="hidden" checked={hideEmptyCustomUniverses} onChange={(e) => updatePreferences({ hideEmptyCustomUniverses: e.target.checked })} />
+                    </label>
+
+                    <label className="flex items-center justify-between cursor-pointer p-3 bg-black border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors">
+                        <span className="text-sm font-medium text-neutral-300">{t('settings.display.hide_portfolio', 'Hide Portfolio if empty')}</span>
+                        <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors ${hideEmptyPortfolio ? 'bg-indigo-500' : 'bg-neutral-700'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${hideEmptyPortfolio ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </div>
+                        <input type="checkbox" className="hidden" checked={hideEmptyPortfolio} onChange={(e) => updatePreferences({ hideEmptyPortfolio: e.target.checked })} />
+                    </label>
                 </div>
             </div>
         </div>

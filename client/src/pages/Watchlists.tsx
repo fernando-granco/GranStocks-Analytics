@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { usePreferences } from '../context/PreferencesContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Save, Trash2, ShieldAlert, Star, Layers, X } from 'lucide-react';
+import { Search, Save, Trash2, ShieldAlert, Star, Layers, X, Briefcase } from 'lucide-react';
 
 
 export default function Watchlists() {
@@ -11,6 +11,11 @@ export default function Watchlists() {
     const [searchQ, setSearchQ] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+
+    // Portfolio inline form
+    const [showPortfolioFormFor, setShowPortfolioFormFor] = useState<string | null>(null);
+    const [formQty, setFormQty] = useState('');
+    const [formPrice, setFormPrice] = useState('');
 
     // For bulk Universe creation
     const [selectedSymbols, setSelectedSymbols] = useState<any[]>([]);
@@ -105,6 +110,24 @@ export default function Watchlists() {
         }
     });
 
+    const addPortfolioMutation = useMutation({
+        mutationFn: async (vars: { symbol: string, type: string, qty: number, price: number }) => {
+            const res = await fetch('/api/portfolio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(vars)
+            });
+            if (!res.ok) throw new Error('Failed to add to portfolio');
+        },
+        onSuccess: () => {
+            setShowPortfolioFormFor(null);
+            setFormQty('');
+            setFormPrice('');
+            // Invalidate tracked assets to update UI just in case Portfolio adds logic to auto-track
+            queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+        }
+    });
+
     const toggleSelection = (asset: any) => {
         setSelectedSymbols(prev => {
             const exists = prev.find(p => p.symbol === asset.symbol);
@@ -175,43 +198,94 @@ export default function Watchlists() {
                                     </thead>
                                     <tbody className="divide-y divide-neutral-800/50">
                                         {searchResults.map((r) => (
-                                            <tr key={r.symbol} className="hover:bg-neutral-800/30 transition-colors">
-                                                <td className="p-4 text-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected(r.symbol)}
-                                                        onChange={() => toggleSelection(r)}
-                                                        className="w-4 h-4 rounded text-blue-600 bg-neutral-800 border-neutral-700 focus:ring-blue-600 focus:ring-offset-neutral-900"
-                                                    />
-                                                </td>
-                                                <td className="p-4 font-bold">{r.symbol}</td>
-                                                <td className="p-4 text-neutral-400">{r.name}</td>
-                                                <td className="p-4">
-                                                    <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${r.assetType === 'CRYPTO' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'
-                                                        }`}>
-                                                        {r.assetType}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4 text-right space-x-2">
-                                                    {isTracked(r.symbol) ? (
+                                            <React.Fragment key={r.symbol}>
+                                                <tr className="hover:bg-neutral-800/30 transition-colors">
+                                                    <td className="p-4 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected(r.symbol)}
+                                                            onChange={() => toggleSelection(r)}
+                                                            className="w-4 h-4 rounded text-blue-600 bg-neutral-800 border-neutral-700 focus:ring-blue-600 focus:ring-offset-neutral-900"
+                                                        />
+                                                    </td>
+                                                    <td className="p-4 font-bold">{r.symbol}</td>
+                                                    <td className="p-4 text-neutral-400">{r.name}</td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${r.assetType === 'CRYPTO' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'
+                                                            }`}>
+                                                            {r.assetType}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right space-x-2">
+                                                        {isTracked(r.symbol) ? (
+                                                            <button
+                                                                onClick={() => untrackMutation.mutate(r.symbol)}
+                                                                className="text-amber-500 hover:text-amber-400 transition-colors tooltip"
+                                                                title="Remove from Tracked Assets"
+                                                            >
+                                                                <Star className="w-5 h-5 fill-current" />
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => trackMutation.mutate(r)}
+                                                                className="text-neutral-500 hover:text-amber-400 transition-colors tooltip"
+                                                                title="Add to Tracked Assets"
+                                                            >
+                                                                <Star className="w-5 h-5" />
+                                                            </button>
+                                                        )}
                                                         <button
-                                                            onClick={() => untrackMutation.mutate(r.symbol)}
-                                                            className="text-amber-500 hover:text-amber-400 transition-colors tooltip"
-                                                            title="Remove from Tracked Assets"
+                                                            onClick={() => setShowPortfolioFormFor(showPortfolioFormFor === r.symbol ? null : r.symbol)}
+                                                            className={`transition-colors tooltip ${showPortfolioFormFor === r.symbol ? 'text-indigo-400' : 'text-neutral-500 hover:text-indigo-400'}`}
+                                                            title="Add to Portfolio"
                                                         >
-                                                            <Star className="w-5 h-5 fill-current" />
+                                                            <Briefcase className="w-5 h-5" />
                                                         </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => trackMutation.mutate(r)}
-                                                            className="text-neutral-500 hover:text-amber-400 transition-colors tooltip"
-                                                            title="Add to Tracked Assets"
-                                                        >
-                                                            <Star className="w-5 h-5" />
-                                                        </button>
-                                                    )}
-                                                </td>
-                                            </tr>
+                                                    </td>
+                                                </tr>
+                                                {showPortfolioFormFor === r.symbol && (
+                                                    <tr className="bg-neutral-800/20">
+                                                        <td colSpan={5} className="p-4">
+                                                            <form
+                                                                className="flex items-end gap-4 max-w-lg ml-auto bg-neutral-900 border border-neutral-800 p-4 rounded-xl"
+                                                                onSubmit={e => {
+                                                                    e.preventDefault();
+                                                                    addPortfolioMutation.mutate({
+                                                                        symbol: r.symbol,
+                                                                        type: r.assetType || 'STOCK',
+                                                                        qty: Number(formQty),
+                                                                        price: Number(formPrice)
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <div className="flex-1 text-left">
+                                                                    <label className="text-xs text-indigo-300 uppercase font-semibold mb-1 block">Quantity</label>
+                                                                    <input
+                                                                        type="number" step="any" min="0" required
+                                                                        className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                                                        value={formQty} onChange={e => setFormQty(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1 text-left">
+                                                                    <label className="text-xs text-indigo-300 uppercase font-semibold mb-1 block">Entry Price ($)</label>
+                                                                    <input
+                                                                        type="number" step="any" min="0" required
+                                                                        className="w-full bg-neutral-950 border border-neutral-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                                                        value={formPrice} onChange={e => setFormPrice(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    type="submit"
+                                                                    disabled={addPortfolioMutation.isPending}
+                                                                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg py-2 px-6 transition-colors h-[38px] flex items-center"
+                                                                >
+                                                                    Confirm
+                                                                </button>
+                                                            </form>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
                                         ))}
                                     </tbody>
                                 </table>

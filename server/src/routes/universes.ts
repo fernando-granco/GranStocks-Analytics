@@ -45,6 +45,9 @@ export default async function universeRoutes(server: FastifyInstance) {
 
     // --- Advanced Symbol Search & Metadata Filtering ---
     server.get('/symbols/search', async (req: FastifyRequest, reply: FastifyReply) => {
+        // Explicitly demand authentication for this potentially expensive public-facing route
+        await server.authenticate(req as any, reply as any);
+
         const schema = z.object({
             q: z.string().optional(),
             sector: z.string().optional(),
@@ -327,8 +330,25 @@ export default async function universeRoutes(server: FastifyInstance) {
         const date = new Date().toISOString().split('T')[0];
 
         try {
-            const language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
-            const narrative = await LLMService.generateNarrative(config.id, authUser.id, `Group: ${universe.name} `, date, promptJson, 'CONSENSUS', language);
+            // Sanitize language
+            let language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+            if (!['en', 'pt-BR', 'es', 'fr', 'de'].includes(language)) {
+                language = 'en';
+            }
+
+            const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, `Group: ${universe.name} `, date, promptJson, 'CONSENSUS', language);
+
+            const narrative = await prisma.aiNarrative.create({
+                data: {
+                    userId: authUser.id,
+                    symbol: `Group: ${universe.name}`,
+                    date,
+                    llmConfigId: config.id,
+                    contentText: narrativeText,
+                    providerUsed: config.provider,
+                    modelUsed: config.model
+                }
+            });
             return { narrative };
         } catch (e: any) {
             return reply.status(500).send({ error: e.message });

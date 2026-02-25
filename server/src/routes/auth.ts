@@ -9,7 +9,7 @@ const loginSchema = z.object({
 });
 
 const registerSchema = loginSchema.extend({
-    inviteCode: z.string()
+    inviteCode: z.string().trim().toUpperCase()
 });
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -31,18 +31,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 const validCode = await tx.inviteCode.findUnique({ where: { code: inviteCode } });
 
                 if (!validCode) {
-                    throw new Error('Invalid invite code');
+                    throw new Error('INV_FAIL');
                 }
 
                 if (validCode.expiresAt && validCode.expiresAt < new Date()) {
-                    throw new Error('Invite code expired');
+                    throw new Error('INV_FAIL');
                 }
 
                 // Enforce usage limits only if maxUses is strictly greater than 0
                 if (validCode.maxUses > 0) {
                     const useCount = await tx.inviteCodeUse.count({ where: { inviteCodeId: validCode.id } });
                     if (useCount >= validCode.maxUses) {
-                        throw new Error('Invite code usage limit reached');
+                        throw new Error('INV_FAIL');
                     }
                 }
 
@@ -74,8 +74,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
             if (error instanceof z.ZodError) {
                 return reply.status(400).send({ error: 'Validation Error', details: error.errors });
             }
-            if (error.message === 'Invalid invite code' || error.message === 'Invite code expired' || error.message === 'Invite code usage limit reached') {
-                return reply.status(403).send({ error: error.message });
+            if (error.message === 'INV_FAIL') {
+                // Log specific failure internally if needed, but return generic to client
+                return reply.status(403).send({ error: 'Invalid, expired, or unavailable invite code.' });
             }
             return reply.status(500).send({ error: 'Internal Server Error' });
         }
@@ -145,6 +146,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
             const updateSchema = z.object({ newPassword: z.string().min(10) });
             const { newPassword } = updateSchema.parse(request.body);
             const payload = request.user as { id: string };
+
+            const user = await prisma.user.findUnique({ where: { id: payload.id } });
+            if (!user) return reply.status(404).send({ error: 'User not found' });
+
+            if (!user.mustChangePassword) {
+                return reply.status(403).send({ error: 'Forbidden: You must use the normal change password flow (/api/user/change-password) requiring current password.' });
+            }
 
             const passwordHash = await bcrypt.hash(newPassword, 10);
             await prisma.user.update({

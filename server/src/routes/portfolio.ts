@@ -123,7 +123,7 @@ export default async function portfolioRoutes(server: FastifyInstance) {
     });
 
     // Run AI Analysis for Portfolio
-    server.post('/analyze', async (req: FastifyRequest, reply: FastifyReply) => {
+    server.post('/analyze', { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } }, async (req: FastifyRequest, reply: FastifyReply) => {
         const authUser = req.user as { id: string };
 
         const config = await prisma.userLLMConfig.findFirst({

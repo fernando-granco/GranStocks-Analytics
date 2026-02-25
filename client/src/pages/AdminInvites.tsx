@@ -13,7 +13,7 @@ export default function AdminInvites() {
     const [expiresDays, setExpiresDays] = useState(7);
 
     useEffect(() => {
-        if (user?.role === 'ADMIN') {
+        if (user?.role === 'ADMIN' || user?.role === 'SUPERADMIN') {
             fetchInvites();
         }
     }, [user]);

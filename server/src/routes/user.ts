@@ -33,7 +33,14 @@ export default async function userRoutes(fastify: FastifyInstance) {
 
             const updates: any = {};
             if (fullName !== undefined) updates.fullName = fullName;
-            if (timezone !== undefined) updates.timezone = timezone;
+            if (timezone !== undefined) {
+                try {
+                    Intl.DateTimeFormat(undefined, { timeZone: timezone });
+                    updates.timezone = timezone;
+                } catch (e) {
+                    return reply.status(400).send({ error: 'Invalid IANA Timezone identifier.' });
+                }
+            }
 
             if (email && email !== user.email) {
                 if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {

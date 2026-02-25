@@ -27,7 +27,7 @@ export default async function adminRoutes(server: FastifyInstance) {
 
     server.patch('/users/:id', async (req: FastifyRequest, reply: FastifyReply) => {
         const schema = z.object({
-            role: z.enum(['USER', 'ADMIN']).optional(),
+            role: z.enum(['USER', 'ADMIN', 'SUPERADMIN']).optional(),
             status: z.enum(['ACTIVE', 'BANNED']).optional(),
             mustChangePassword: z.boolean().optional()
         });
@@ -39,6 +39,17 @@ export default async function adminRoutes(server: FastifyInstance) {
         // Prevent self-demotion or self-ban
         if (id === authUser.id && (updates.role === 'USER' || updates.status === 'BANNED')) {
             return reply.status(403).send({ error: "Cannot demote or ban yourself." });
+        }
+
+        const targetUser = await prisma.user.findUnique({ where: { id } });
+        if (!targetUser) return reply.status(404).send({ error: "User not found" });
+
+        const actor = await prisma.user.findUnique({ where: { id: authUser.id } });
+        if (!actor) return reply.status(401).send({ error: "Actor not found" });
+
+        // Admin peer-protection: Only SUPERADMIN can modify another ADMIN or SUPERADMIN
+        if ((targetUser.role === 'ADMIN' || targetUser.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
+            return reply.status(403).send({ error: "Permission denied: Admins cannot modify other Admins or Superadmins." });
         }
 
         const user = await prisma.user.update({
@@ -104,7 +115,7 @@ export default async function adminRoutes(server: FastifyInstance) {
                 actorUserId: authUser.id,
                 targetUserId: id,
                 action: 'FORCE_PASSWORD_RESET',
-                metadataJson: '{}'
+                metadataJson: JSON.stringify({ action: 'forced' })
             }
         });
 
@@ -127,10 +138,9 @@ export default async function adminRoutes(server: FastifyInstance) {
         if (!user) return reply.status(404).send({ error: "User not found" });
         if (!actor) return reply.status(401).send({ error: "Actor not found" });
 
-        // Safeguard: Only SUPERADMINs can delete SUPERADMINs (if that role string is used, otherwise ADMIN logic below applies)
-        // If your platform considers "SUPERADMIN" as a distinct level, enforce it:
-        if (user.role === 'SUPERADMIN' && actor.role !== 'SUPERADMIN') {
-            return reply.status(403).send({ error: "Permission denied: Admins cannot delete Superadmins." });
+        // Admin peer-protection: Only SUPERADMIN can delete another ADMIN or SUPERADMIN
+        if ((user.role === 'ADMIN' || user.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
+            return reply.status(403).send({ error: "Permission denied: Admins cannot delete other Admins or Superadmins." });
         }
 
         // Clean up cascading relations to prevent foreign key constraint violations

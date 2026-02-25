@@ -56,7 +56,7 @@ export default fp(async (fastify) => {
             if (u.status === 'BANNED') {
                 return reply.status(403).send({ error: 'Forbidden: Account is banned' });
             }
-            if (u.mustChangePassword) {
+            if (u.mustChangePassword && !request.url.startsWith('/api/auth/update-password') && !request.url.startsWith('/api/auth/logout') && !request.url.startsWith('/api/user/change-password')) {
                 return reply.status(403).send({ error: 'Forbidden: Password change required', mustChangePassword: true });
             }
             if (!['ADMIN', 'SUPERADMIN'].includes(u.role)) {

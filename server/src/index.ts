@@ -2,6 +2,7 @@ import fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyHelmet from '@fastify/helmet';
 import path from 'path';
 import { prisma } from './services/cache';
 import { registerRoutes } from './routes';
@@ -22,6 +23,19 @@ const server = fastify({ logger: true });
 async function start() {
     await server.register(cors, {
         origin: process.env.APP_ORIGIN || 'http://localhost:5173'
+    });
+
+    await server.register(fastifyHelmet, {
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Vite requires eval for dev, adjust in hard prod
+                styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind requires inline sometimes
+                imgSrc: ["'self'", "data:", "https:"],
+                connectSrc: ["'self'", process.env.APP_ORIGIN || "*"]
+            }
+        },
+        global: true
     });
 
     await server.register(fastifyRateLimit, {

@@ -57,6 +57,9 @@ export function AccountProfile() {
 
     const updatePassword = useMutation({
         mutationFn: async () => {
+            if (newPassword.length < 10) {
+                throw new Error("New password must be at least 10 characters long.");
+            }
             const res = await fetch('/api/user/change-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

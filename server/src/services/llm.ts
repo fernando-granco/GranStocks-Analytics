@@ -40,12 +40,21 @@ export async function validateBaseUrl(urlStr: string | null | undefined, isCompa
 
     try {
         const lookup = await dns.lookup(hostname);
-        const ip = lookup.address;
-        if (ip === '127.0.0.1' || ip === '::1' || ip.startsWith('10.') || ip.startsWith('192.168.') || ip.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) {
-            throw new Error('Base URL resolves to a forbidden private IP address');
+        const ip = lookup.address.toLowerCase();
+
+        // Check for loopback, link-local, private, and metadata IPs
+        if (ip === '127.0.0.1' || ip === '::1' ||
+            ip.startsWith('10.') ||
+            ip.startsWith('192.168.') ||
+            ip.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) || // Private IPv4
+            ip.startsWith('169.254.') || // IPv4 Link-local / Cloud metadata (e.g. 169.254.169.254)
+            ip.startsWith('fe80:') || // IPv6 Link-local
+            ip.startsWith('fc') || ip.startsWith('fd') // IPv6 Private / ULA (includes fd00:ec2::254)
+        ) {
+            throw new Error('Base URL resolves to a forbidden private or link-local IP address');
         }
     } catch (err: any) {
-        if (err.message.includes('forbidden private IP address')) throw err;
+        if (err.message.includes('forbidden private')) throw err;
         throw new Error(`Could not resolve hostname ${hostname}`);
     }
 

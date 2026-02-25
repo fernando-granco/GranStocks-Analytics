@@ -155,13 +155,19 @@ export async function registerRoutes(server: FastifyInstance) {
     });
 
     // --- Market Data Pull-through (Proxy to Cache/Providers) ---
-    server.get('/api/data/quote', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/data/quote', {
+        preValidation: [server.authenticate],
+        config: { rateLimit: { max: 120, timeWindow: '1 minute' } }
+    }, async (req, reply) => {
         const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
         const { symbol, assetType } = schema.parse(req.query);
         return await MarketData.getQuote(symbol, assetType);
     });
 
-    server.get('/api/data/candles', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/data/candles', {
+        preValidation: [server.authenticate],
+        config: { rateLimit: { max: 120, timeWindow: '1 minute' } }
+    }, async (req, reply) => {
         const schema = z.object({
             symbol: z.string().toUpperCase(),
             assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK'),
@@ -172,7 +178,10 @@ export async function registerRoutes(server: FastifyInstance) {
         return await MarketData.getCandles(symbol, assetType, range);
     });
 
-    server.get('/api/data/profile', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/data/profile', {
+        preValidation: [server.authenticate],
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } }
+    }, async (req, reply) => {
         const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
         const { symbol, assetType } = schema.parse(req.query);
         return await MarketData.getOverview(symbol, assetType);
@@ -360,7 +369,7 @@ export async function registerRoutes(server: FastifyInstance) {
         const authUser = req.user as { id: string };
         const schema = z.object({
             role: z.string(),
-            templateText: z.string(),
+            templateText: z.string().max(8000, "Template text cannot exceed 8000 characters"),
             outputMode: z.string().default('TEXT_ONLY'),
             enabled: z.boolean().default(true)
         });
@@ -488,7 +497,10 @@ export async function registerRoutes(server: FastifyInstance) {
     });
 
     // --- AI Generation Orchestration ---
-    server.post('/api/ai/generate', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.post('/api/ai/generate', {
+        preValidation: [server.authenticate],
+        config: { rateLimit: { max: 20, timeWindow: '1 hour' } }
+    }, async (req, reply) => {
         const schema = z.object({
             date: z.string(),
             symbols: z.array(z.string()),
@@ -499,11 +511,20 @@ export async function registerRoutes(server: FastifyInstance) {
 
         const authUser = req.user as { id: string };
 
+        // Verify ownership of all provided LLM configs
+        const ownedConfigs = await prisma.userLLMConfig.findMany({
+            where: { id: { in: llmConfigIds }, userId: authUser.id }
+        });
+        if (ownedConfigs.length !== llmConfigIds.length) {
+            return reply.status(403).send({ error: 'One or more LLM Configurations are unauthorized or not found.' });
+        }
+
         const results: any[] = [];
         const errors: string[] = [];
 
         // For each selected model, generate narratives side-by-side
-        for (const configId of llmConfigIds) {
+        for (const config of ownedConfigs) {
+            const configId = config.id;
             for (const symbol of symbols) {
                 // Check if already exists unless forced
                 if (!force) {
@@ -551,9 +572,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
                 try {
                     const language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
-                    const narrativeText = await LLMService.generateNarrative(configId, authUser.id, symbol, date, JSON.stringify(assembledContext, null, 2), 'CONSENSUS', language);
-
-                    const config = await prisma.userLLMConfig.findUnique({ where: { id: configId } });
+                    const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, symbol, date, JSON.stringify(assembledContext, null, 2), 'CONSENSUS', language);
 
                     const narrative = await prisma.aiNarrative.create({
                         data: {
@@ -584,7 +603,10 @@ export async function registerRoutes(server: FastifyInstance) {
     });
 
     // --- On-demand Realtime Analysis (uses price history cache) ---
-    server.get('/api/asset/realtime-analysis', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/asset/realtime-analysis', {
+        preValidation: [server.authenticate],
+        config: { rateLimit: { max: 60, timeWindow: '1 hour' } }
+    }, async (req, reply) => {
         const schema = z.object({
             symbol: z.string().toUpperCase(),
             assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK')

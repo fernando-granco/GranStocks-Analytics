@@ -32,7 +32,6 @@ export default function Register() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to register');
 
-            login(data);
             await login(data);
             navigate('/app');
         } catch (err: any) {

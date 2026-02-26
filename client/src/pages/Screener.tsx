@@ -5,22 +5,49 @@ import { BarChart3, Play, AlertTriangle, Info, Star } from 'lucide-react';
 import { cn } from '../utils';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 
 export default function Screener() {
-    const [universe, setUniverse] = useState<'SP500' | 'NASDAQ100' | 'CRYPTO'>('SP500');
+    const { t } = useTranslation();
+    const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const [selectedUniverses, setSelectedUniverses] = useState<string[]>(['SP500', 'NASDAQ100', 'CRYPTO']);
+    const [activeTab, setActiveTab] = useState<string>('SP500');
     const [livePrices, setLivePrices] = useState<Record<string, number | null>>({});
     const { user } = useAuth();
-    const queryClient = useQueryClient();
-    const navigate = useNavigate();
-    const { t } = useTranslation();
+
+    const { data: prefsData } = useQuery({
+        queryKey: ['preferences'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/preferences');
+            if (!res.ok) return null;
+            return res.json();
+        }
+    });
+
+    useEffect(() => {
+        if (prefsData?.screenerUniverses && prefsData.screenerUniverses.length > 0) {
+            setSelectedUniverses(prefsData.screenerUniverses);
+            if (!prefsData.screenerUniverses.includes(activeTab)) {
+                setActiveTab(prefsData.screenerUniverses[0]);
+            }
+        }
+    }, [prefsData]);
+
+    useEffect(() => {
+        if (!selectedUniverses.includes(activeTab) && selectedUniverses.length > 0) {
+            setActiveTab(selectedUniverses[0]);
+        }
+    }, [selectedUniverses, activeTab]);
 
     const { data, isLoading } = useQuery({
-        queryKey: ['screener', universe],
+        queryKey: ['screener_top', activeTab],
         queryFn: async () => {
-            const res = await fetch(`/api/screener/${universe}`);
+            const res = await fetch(`/api/screener/top/all?universes=${activeTab}`);
             if (!res.ok) throw new Error('Failed to fetch screener data');
             return res.json();
         },
+        enabled: !!activeTab,
         refetchInterval: (query: any) => query.state.data?.state?.status === 'RUNNING' ? 3000 : false
     });
 
@@ -35,10 +62,14 @@ export default function Screener() {
 
     const trackMutation = useMutation({
         mutationFn: async (symbol: string) => {
+            // Determine assetType based on the universe of the asset being tracked
+            const assetUniverse = data?.topCandidates.find((c: any) => c.symbol === symbol)?.universeType;
+            const assetType = assetUniverse === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
+
             const res = await fetch('/api/tracked-assets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ symbol, assetType: universe === 'CRYPTO' ? 'CRYPTO' : 'STOCK' })
+                body: JSON.stringify({ symbol, assetType })
             });
             if (!res.ok) throw new Error('Failed to track asset');
         },
@@ -61,25 +92,40 @@ export default function Screener() {
 
     const runJobMutation = useMutation({
         mutationFn: async () => {
-            const res = await fetch('/api/admin/screener/run', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ universe, date: new Date().toISOString().split('T')[0] })
+            const res = await fetch(`/api/admin/screener/run?universe=${activeTab}`, {
+                method: 'POST'
             });
-            if (!res.ok) throw new Error('Failed to start job');
+            if (!res.ok) throw new Error('Trigger failed');
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['screener', universe] });
+            queryClient.invalidateQueries({ queryKey: ['screener_top', activeTab] });
+            toast.success('Screener job triggered in background');
+        }
+    });
+
+    const saveDefaultsMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/settings/preferences', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ screenerUniverses: selectedUniverses })
+            });
+            if (!res.ok) throw new Error('Failed to save');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['preferences'] });
+            toast.success('Market preferences saved as default');
         }
     });
 
     useEffect(() => {
         if (!data?.topCandidates || data.topCandidates.length === 0) return;
 
-        const assetType = universe === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
         data.topCandidates.forEach((c: any) => {
             if (livePrices[c.symbol] !== undefined) return;
 
+            const assetType = c.universeType === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
             // Fetch price for each candidate
             fetch(`/api/data/quote?symbol=${c.symbol}&assetType=${assetType}`)
                 .then(res => res.json())
@@ -90,7 +136,7 @@ export default function Screener() {
                     setLivePrices(prev => ({ ...prev, [c.symbol]: null }));
                 });
         });
-    }, [data?.topCandidates, universe]);
+    }, [data?.topCandidates, selectedUniverses]); // Changed dependency from universe to selectedUniverses
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -114,36 +160,81 @@ export default function Screener() {
                 )}
             </div>
 
-            {/* Tabs */}
-            <div className="flex bg-neutral-900 border border-neutral-800 rounded-xl p-1 w-full max-w-sm">
-                <button
-                    onClick={() => setUniverse('SP500')}
-                    className={cn(
-                        "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors",
-                        universe === 'SP500' ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-200"
-                    )}
-                >
-                    {t('screener.tabs.sp500')}
-                </button>
-                <button
-                    onClick={() => setUniverse('NASDAQ100')}
-                    className={cn(
-                        "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors",
-                        universe === 'NASDAQ100' ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-200"
-                    )}
-                >
-                    {t('screener.tabs.nasdaq100')}
-                </button>
-                <button
-                    onClick={() => setUniverse('CRYPTO')}
-                    className={cn(
-                        "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors",
-                        universe === 'CRYPTO' ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-neutral-200"
-                    )}
-                >
-                    {t('screener.tabs.crypto')}
-                </button>
-            </div>
+            {/* Markets Configuration */}
+            <details className="group bg-neutral-900 border border-neutral-800 rounded-xl w-full [&_summary::-webkit-details-marker]:hidden">
+                <summary className="flex items-center justify-between p-4 cursor-pointer select-none outline-none">
+                    <h3 className="text-sm font-medium text-neutral-300 group-open:text-indigo-400 transition-colors">Manage Visible Markets...</h3>
+                    <span className="text-xs text-neutral-500 font-medium group-open:hidden">Click to configure</span>
+                </summary>
+                <div className="p-4 pt-0 mt-2 border-t border-neutral-800/50">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4 mb-4 border-b border-neutral-800/50">
+                        <p className="text-sm text-neutral-400">Select which markets appear as tabs below.</p>
+                        <button
+                            onClick={() => saveDefaultsMutation.mutate()}
+                            disabled={saveDefaultsMutation.isPending}
+                            className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+                        >
+                            Save as Default
+                        </button>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        {[
+                            { id: 'SP500', label: '🇺🇸 S&P 500' },
+                            { id: 'NASDAQ100', label: '🇺🇸 NASDAQ 100' },
+                            { id: 'TSX60', label: '🇨🇦 TSX 60' },
+                            { id: 'IBOV', label: '🇧🇷 IBOVESPA' },
+                            { id: 'CRYPTO', label: '🪙 Crypto Top 100' }
+                        ].map(u => (
+                            <label key={u.id} className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors",
+                                selectedUniverses.includes(u.id)
+                                    ? "bg-indigo-500/10 border-indigo-500/50 text-indigo-300"
+                                    : "bg-neutral-800/50 border-neutral-700/50 text-neutral-400 hover:bg-neutral-800"
+                            )}>
+                                <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={selectedUniverses.includes(u.id)}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedUniverses(prev => [...prev, u.id]);
+                                        } else {
+                                            setSelectedUniverses(prev => prev.filter(x => x !== u.id));
+                                        }
+                                    }}
+                                />
+                                {u.label}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            </details>
+
+            {/* Display Tabs */}
+            {selectedUniverses.length > 0 && (
+                <div className="flex flex-wrap gap-2 border-b border-neutral-800 pb-px">
+                    {[
+                        { id: 'SP500', label: '🇺🇸 S&P 500' },
+                        { id: 'NASDAQ100', label: '🇺🇸 NASDAQ 100' },
+                        { id: 'TSX60', label: '🇨🇦 TSX 60' },
+                        { id: 'IBOV', label: '🇧🇷 IBOVESPA' },
+                        { id: 'CRYPTO', label: '🪙 Crypto' }
+                    ].filter(u => selectedUniverses.includes(u.id)).map(u => (
+                        <button
+                            key={u.id}
+                            onClick={() => setActiveTab(u.id)}
+                            className={cn(
+                                "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                                activeTab === u.id
+                                    ? "border-indigo-500 text-indigo-400"
+                                    : "border-transparent text-neutral-500 hover:text-neutral-300 hover:border-neutral-700"
+                            )}
+                        >
+                            {u.label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Job State Banner */}
             {data?.state && data.state.status === 'RUNNING' && (
@@ -171,19 +262,26 @@ export default function Screener() {
             ) : (data?.topCandidates?.length ?? 0) === 0 ? (
                 <div className="p-12 border border-dashed border-neutral-800 rounded-2xl text-center bg-neutral-900/20">
                     <Info className="mx-auto h-12 w-12 text-neutral-600 mb-4" />
-                    <h3 className="text-lg font-medium text-neutral-300">No cached results for {universe}</h3>
+                    <h3 className="text-lg font-medium text-neutral-300">No cached results for selected markets</h3>
                     <p className="text-neutral-500 mt-1">Admin must run the screener job to populate the database.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {data.topCandidates.map((c: any, index: number) => {
                         const metrics = JSON.parse(c.metricsJson);
-                        const flags = JSON.parse(c.riskFlagsJson);
+                        const flags = c.riskFlagsJson ? JSON.parse(c.riskFlagsJson) : [];
+                        const isCrypto = c.universeType === 'CRYPTO';
+
+                        let marketBadge = '🇺🇸 US';
+                        let currencyBadge = 'USD';
+                        if (c.universeName === 'TSX60') { marketBadge = '🇨🇦 CA'; currencyBadge = 'CAD'; }
+                        else if (c.universeName === 'IBOV') { marketBadge = '🇧🇷 BR'; currencyBadge = 'BRL'; }
+                        else if (isCrypto) { marketBadge = '🪙 Crypto'; currencyBadge = 'USDT'; }
 
                         return (
                             <div
-                                key={c.symbol}
-                                onClick={() => navigate(`/app/asset/${universe === 'CRYPTO' ? 'crypto' : 'stock'}/${c.symbol.toLowerCase()}`)}
+                                key={c.id}
+                                onClick={() => navigate(`/app/asset/${c.universeType === 'CRYPTO' ? 'crypto' : 'stock'}/${c.symbol.toLowerCase()}`)}
                                 className="group bg-neutral-900 border border-neutral-800 hover:border-indigo-500/50 rounded-2xl p-5 cursor-pointer relative overflow-hidden transition-all"
                             >
                                 <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-indigo-500/10 to-transparent -mr-8 -mt-8 rounded-full blur-xl group-hover:bg-indigo-500/20 transition-all" />
@@ -195,9 +293,9 @@ export default function Screener() {
                                             <h2 className="text-2xl font-bold">{c.symbol}</h2>
                                         </div>
                                         <div className="flex items-center gap-2 pl-6">
-                                            <span className="text-sm font-mono text-neutral-300">
+                                            <span className="font-mono text-xl text-neutral-200 font-medium">
                                                 {livePrices[c.symbol] !== undefined ? (
-                                                    livePrices[c.symbol] !== null ? `$${livePrices[c.symbol]!.toFixed(2)}` : 'N/A'
+                                                    livePrices[c.symbol] !== null ? `$${livePrices[c.symbol]!.toFixed(2)} ${currencyBadge}` : 'N/A'
                                                 ) : (
                                                     <span className="animate-pulse opacity-50">...</span>
                                                 )}
@@ -210,6 +308,7 @@ export default function Screener() {
                                                 </span>
                                             )}
                                         </div>
+                                        <span className="text-xs bg-neutral-800 text-neutral-400 px-2 rounded flex items-center">{marketBadge}</span>
                                     </div>
                                     <div className="flex gap-2">
                                         <div className="text-sm font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">

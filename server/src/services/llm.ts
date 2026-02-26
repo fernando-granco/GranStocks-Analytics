@@ -77,6 +77,7 @@ export class OpenAIProvider implements LLMProvider {
         const url = this.baseUrl ? `${this.baseUrl}/chat/completions` : 'https://api.openai.com/v1/chat/completions';
         const res = await fetch(url, {
             method: 'POST',
+            redirect: 'error',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${this.apiKey}`
@@ -113,6 +114,7 @@ export class GeminiProvider implements LLMProvider {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
         const res = await fetch(url, {
             method: 'POST',
+            redirect: 'error',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 system_instruction: {
@@ -145,6 +147,7 @@ export class AnthropicProvider implements LLMProvider {
         const url = 'https://api.anthropic.com/v1/messages';
         const res = await fetch(url, {
             method: 'POST',
+            redirect: 'error',
             headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': this.apiKey,

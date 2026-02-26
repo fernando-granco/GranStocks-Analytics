@@ -76,28 +76,49 @@ export default function DemoScreener() {
                     </button>
                 </div>
 
-                {/* Tabs */}
-                <div className="flex bg-neutral-900 border border-neutral-800 rounded-xl p-1 w-full max-w-sm">
-                    <button
-                        className={cn(
-                            "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors bg-neutral-800 text-white"
-                        )}
-                    >
-                        {t('screener.tabs.sp500')}
+                {/* Markets Configuration */}
+                <details className="group bg-neutral-900 border border-neutral-800 rounded-xl w-full [&_summary::-webkit-details-marker]:hidden">
+                    <summary className="flex items-center justify-between p-4 cursor-pointer select-none outline-none">
+                        <h3 className="text-sm font-medium text-neutral-300 group-open:text-indigo-400 transition-colors">Manage Visible Markets...</h3>
+                        <span className="text-xs text-neutral-500 font-medium group-open:hidden">Click to configure</span>
+                    </summary>
+                    <div className="p-4 pt-0 mt-2 border-t border-neutral-800/50">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4 mb-4 border-b border-neutral-800/50">
+                            <p className="text-sm text-neutral-400">Select which markets appear as tabs below.</p>
+                            <span className="text-xs text-neutral-500 font-medium">Demo Default Only</span>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            {[
+                                { id: 'SP500', label: '🇺🇸 S&P 500', active: true },
+                                { id: 'NASDAQ100', label: '🇺🇸 NASDAQ 100', active: false },
+                                { id: 'TSX60', label: '🇨🇦 TSX 60', active: false },
+                                { id: 'IBOV', label: '🇧🇷 IBOVESPA', active: false },
+                                { id: 'CRYPTO', label: '🪙 Crypto Top 100', active: false }
+                            ].map(u => (
+                                <label key={u.id} className={cn(
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition-colors",
+                                    u.active
+                                        ? "bg-indigo-500/10 border-indigo-500/50 text-indigo-300"
+                                        : "bg-neutral-800/50 border-neutral-700/50 text-neutral-500 opacity-50 cursor-not-allowed"
+                                )}>
+                                    <input type="checkbox" className="hidden" checked={u.active} disabled />
+                                    {u.label}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                </details>
+
+                {/* Display Tabs */}
+                <div className="flex flex-wrap gap-2 border-b border-neutral-800 pb-px">
+                    <button className="px-4 py-3 text-sm font-medium border-b-2 transition-colors border-indigo-500 text-indigo-400">
+                        🇺🇸 S&P 500
                     </button>
-                    <button
-                        className={cn(
-                            "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors opacity-50 text-neutral-400 cursor-not-allowed"
-                        )}
-                    >
-                        {t('screener.tabs.nasdaq100')}
+                    <button disabled className="px-4 py-3 text-sm font-medium border-b-2 transition-colors border-transparent text-neutral-500 opacity-50 cursor-not-allowed">
+                        🇨🇦 TSX 60
                     </button>
-                    <button
-                        className={cn(
-                            "flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors opacity-50 text-neutral-400 cursor-not-allowed"
-                        )}
-                    >
-                        {t('screener.tabs.crypto')}
+                    <button disabled className="px-4 py-3 text-sm font-medium border-b-2 transition-colors border-transparent text-neutral-500 opacity-50 cursor-not-allowed">
+                        🇧🇷 IBOVESPA
                     </button>
                 </div>
 
@@ -128,8 +149,11 @@ export default function DemoScreener() {
                                         <div className="flex items-center gap-4">
                                             <div className="w-8 text-center font-mono text-neutral-500">#{i + 1}</div>
                                             <div>
-                                                <div className="font-bold text-lg">{c.symbol}</div>
-                                                <div className="text-xs text-neutral-500">Score: {c.score.toFixed(1)}</div>
+                                                <div className="font-bold text-lg flex items-center gap-2">
+                                                    {c.symbol}
+                                                    <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 rounded font-normal flex items-center h-4">🇺🇸 US</span>
+                                                </div>
+                                                <div className="text-xs text-neutral-500 mt-0.5">Score: {c.score.toFixed(1)}</div>
                                             </div>
                                         </div>
 

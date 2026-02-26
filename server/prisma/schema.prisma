@@ -12,7 +12,7 @@ model User {
   email              String    @unique
   fullName           String?
   passwordHash       String
-  role               String    @default("USER") // ENUM(USER, ADMIN)
+  role               String    @default("USER") // ENUM(USER, ADMIN, SUPERADMIN)
   emailVerifiedAt    DateTime?
   lastLoginAt        DateTime?
   status             String    @default("ACTIVE") // ENUM(ACTIVE, BANNED)
@@ -176,6 +176,7 @@ model UserPreferences {
   hideEmptyMarketOverview Boolean @default(false)
   hideEmptyCustomUniverses Boolean @default(false)
   hideEmptyPortfolio Boolean @default(false)
+  screenerUniverses String @default("[\"SP500\",\"NASDAQ100\",\"CRYPTO\"]") // JSON array of stored preferences
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

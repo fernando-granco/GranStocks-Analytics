@@ -20,6 +20,7 @@
         "lucide-react": "^0.379.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
+        "react-hot-toast": "^2.6.0",
         "react-i18next": "^16.5.4",
         "react-router-dom": "^6.23.1",
         "react-select": "^5.10.2",

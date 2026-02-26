@@ -7,7 +7,7 @@ import { AnalysisConfigPayload, DEFAULT_ANALYSIS_CONFIG } from './config';
 
 export class ScreenerService {
 
-    static async runScreenerJob(universe: 'SP500' | 'NASDAQ100' | 'CRYPTO', date: string) {
+    static async runScreenerJob(universe: 'SP500' | 'NASDAQ100' | 'CRYPTO' | 'TSX60' | 'IBOV', date: string) {
         const assetType = universe === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
         // Setup / Reset Job State
         await prisma.jobState.upsert({
@@ -67,12 +67,16 @@ export class ScreenerService {
     }
 
     private static loadUniverse(universe: string): string[] {
-        const filePath = path.join(__dirname, '..', 'data', `${universe.toLowerCase()}.json`);
+        // use process.cwd() instead of __dirname to handle tsx / tsc compiled paths consistently out of src or dist
+        const isDist = __dirname.includes('dist');
+        const dir = isDist ? path.join(process.cwd(), 'src', 'data') : path.join(__dirname, '..', 'data');
+        const filePath = path.join(dir, `${universe.toLowerCase()}.json`);
+
         try {
             const data = fs.readFileSync(filePath, 'utf-8');
             return JSON.parse(data);
         } catch (e) {
-            console.error(`Could not load universe JSON for ${universe}`);
+            console.error(`Could not load universe JSON for ${universe} at ${filePath}`);
             return [];
         }
     }

@@ -68,6 +68,32 @@ export default fp(async (fastify) => {
             return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
         }
     });
+
+    // Decorate fastify with a superadmin middleware
+    fastify.decorate('requireSuperAdmin', async function (request: FastifyRequest, reply: FastifyReply) {
+        try {
+            await request.jwtVerify();
+            const tokenUser = request.user as { id: string };
+            const u = await prisma.user.findUnique({ where: { id: tokenUser.id } });
+
+            if (!u) {
+                return reply.status(401).send({ error: 'Unauthorized: User not found' });
+            }
+            if (u.status === 'BANNED') {
+                return reply.status(403).send({ error: 'Forbidden: Account is banned' });
+            }
+            if (u.mustChangePassword && !request.url.startsWith('/api/auth/update-password') && !request.url.startsWith('/api/auth/logout') && !request.url.startsWith('/api/user/change-password')) {
+                return reply.status(403).send({ error: 'Forbidden: Password change required', mustChangePassword: true });
+            }
+            if (u.role !== 'SUPERADMIN') {
+                return reply.status(403).send({ error: 'Forbidden: Superadmin access only' });
+            }
+
+            request.user = { id: u.id, role: u.role };
+        } catch (err) {
+            return reply.status(401).send({ error: 'Unauthorized: Invalid or missing token' });
+        }
+    });
 });
 
 // Add type declarations for Fastify
@@ -75,5 +101,6 @@ declare module 'fastify' {
     export interface FastifyInstance {
         authenticate: any;
         requireAdmin: any;
+        requireSuperAdmin: any;
     }
 }

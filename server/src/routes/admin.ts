@@ -52,6 +52,11 @@ export default async function adminRoutes(server: FastifyInstance) {
             return reply.status(403).send({ error: "Permission denied: Admins cannot modify other Admins or Superadmins." });
         }
 
+        // Privilege escalation protection: Only SUPERADMIN can grant SUPERADMIN role
+        if (updates.role === 'SUPERADMIN' && actor.role !== 'SUPERADMIN') {
+            return reply.status(403).send({ error: "Permission denied: Only Superadmins can assign the Superadmin role." });
+        }
+
         const user = await prisma.user.update({
             where: { id },
             data: updates,
@@ -76,10 +81,20 @@ export default async function adminRoutes(server: FastifyInstance) {
             return reply.status(403).send({ error: "Direct password setting disabled in production. Use Force Reset." });
         }
 
-        const schema = z.object({ newPassword: z.string().min(10) });
         const { id } = req.params as { id: string };
-        const { newPassword } = schema.parse(req.body);
         const authUser = req.user as { id: string };
+        const actor = await prisma.user.findUnique({ where: { id: authUser.id } });
+        const targetUser = await prisma.user.findUnique({ where: { id } });
+
+        if (!actor || !targetUser) return reply.status(404).send({ error: "User not found" });
+
+        // Admin peer-protection: Only SUPERADMIN can modify another ADMIN or SUPERADMIN
+        if ((targetUser.role === 'ADMIN' || targetUser.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
+            return reply.status(403).send({ error: "Permission denied: Admins cannot modify other Admins or Superadmins." });
+        }
+
+        const schema = z.object({ newPassword: z.string().min(10) });
+        const { newPassword } = schema.parse(req.body);
 
         const passwordHash = await bcrypt.hash(newPassword, 10);
         await prisma.user.update({
@@ -102,6 +117,16 @@ export default async function adminRoutes(server: FastifyInstance) {
     server.post('/users/:id/force-reset', async (req: FastifyRequest, reply: FastifyReply) => {
         const { id } = req.params as { id: string };
         const authUser = req.user as { id: string };
+
+        const actor = await prisma.user.findUnique({ where: { id: authUser.id } });
+        const targetUser = await prisma.user.findUnique({ where: { id } });
+
+        if (!actor || !targetUser) return reply.status(404).send({ error: "User not found" });
+
+        // Admin peer-protection: Only SUPERADMIN can modify another ADMIN or SUPERADMIN
+        if ((targetUser.role === 'ADMIN' || targetUser.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
+            return reply.status(403).send({ error: "Permission denied: Admins cannot modify other Admins or Superadmins." });
+        }
 
         // In DEV: just flip the flag
         // In PROD: ideally generate a token and shoot an email. For now, flip the flag.

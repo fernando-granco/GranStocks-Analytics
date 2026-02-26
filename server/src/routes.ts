@@ -287,12 +287,21 @@ export async function registerRoutes(server: FastifyInstance) {
                 data: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', hideEmptyMarketOverview: false, hideEmptyCustomUniverses: false, hideEmptyPortfolio: false }
             });
         }
+        const untypedPrefs = prefs as any;
+        let parsedUniverses = ['SP500', 'NASDAQ100', 'CRYPTO'];
+        try {
+            if (untypedPrefs.screenerUniverses) {
+                parsedUniverses = JSON.parse(untypedPrefs.screenerUniverses);
+            }
+        } catch (e) { }
+
         return {
             mode: prefs.mode,
             timezone: prefs.timezone,
             hideEmptyMarketOverview: prefs.hideEmptyMarketOverview,
             hideEmptyCustomUniverses: prefs.hideEmptyCustomUniverses,
-            hideEmptyPortfolio: prefs.hideEmptyPortfolio
+            hideEmptyPortfolio: prefs.hideEmptyPortfolio,
+            screenerUniverses: parsedUniverses
         };
     });
 
@@ -303,6 +312,7 @@ export async function registerRoutes(server: FastifyInstance) {
             hideEmptyMarketOverview: z.boolean().optional(),
             hideEmptyCustomUniverses: z.boolean().optional(),
             hideEmptyPortfolio: z.boolean().optional(),
+            screenerUniverses: z.array(z.string()).optional()
         });
         const updates = schema.parse(req.body);
         const authUser = req.user as { id: string };
@@ -316,18 +326,32 @@ export async function registerRoutes(server: FastifyInstance) {
             }
         }
 
+        const payload: any = { ...updates };
+        if (updates.screenerUniverses) {
+            payload.screenerUniverses = JSON.stringify(updates.screenerUniverses);
+        }
+
         const prefs = await prisma.userPreferences.upsert({
             where: { userId: authUser.id },
-            update: updates,
-            create: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', ...updates }
+            update: payload,
+            create: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', ...payload }
         });
+
+        const untypedPrefs = prefs as any;
+        let parsedUniverses = ['SP500', 'NASDAQ100', 'CRYPTO'];
+        try {
+            if (untypedPrefs.screenerUniverses) {
+                parsedUniverses = JSON.parse(untypedPrefs.screenerUniverses);
+            }
+        } catch (e) { }
 
         return {
             mode: prefs.mode,
             timezone: prefs.timezone,
             hideEmptyMarketOverview: prefs.hideEmptyMarketOverview,
             hideEmptyCustomUniverses: prefs.hideEmptyCustomUniverses,
-            hideEmptyPortfolio: prefs.hideEmptyPortfolio
+            hideEmptyPortfolio: prefs.hideEmptyPortfolio,
+            screenerUniverses: parsedUniverses
         };
     });
 
@@ -377,9 +401,9 @@ export async function registerRoutes(server: FastifyInstance) {
     server.post('/api/settings/prompts', { preValidation: [server.authenticate] }, async (req, reply) => {
         const authUser = req.user as { id: string };
         const schema = z.object({
-            role: z.string(),
+            role: z.enum(['TECHNICAL', 'FUNDAMENTAL', 'SENTIMENT', 'BULL', 'BEAR', 'RISK', 'CONSENSUS', 'NARRATIVE']),
             templateText: z.string().max(8000, "Template text cannot exceed 8000 characters"),
-            outputMode: z.string().default('TEXT_ONLY'),
+            outputMode: z.enum(['TEXT_ONLY', 'JSON_STRICT', 'MARKDOWN', 'ACTION_LABELS']).default('TEXT_ONLY'),
             enabled: z.boolean().default(true)
         });
         const data = schema.parse(req.body);
@@ -479,7 +503,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
     // --- Screener API ---
     server.get('/api/screener/:universe', { preValidation: [server.authenticate] }, async (req, reply) => {
-        const schema = z.object({ universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO']) });
+        const schema = z.object({ universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO', 'TSX60', 'IBOV']) });
         const { universe } = schema.parse(req.params);
         const assetType = universe === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
 
@@ -503,6 +527,44 @@ export async function registerRoutes(server: FastifyInstance) {
         }).sort((a, b) => b.score - a.score).slice(0, 25);
 
         return { state: jobState, topCandidates: snapshots };
+    });
+
+    server.get('/api/screener/top/all', { preValidation: [server.authenticate] }, async (req, reply) => {
+        const schema = z.object({ universes: z.string().optional() });
+        const { universes } = schema.parse(req.query);
+
+        const authUser = req.user as { id: string };
+
+        let queryUniverses: string[] = [];
+        if (universes) {
+            queryUniverses = universes.split(',').slice(0, 10); // basic sanity cap
+        } else {
+            const prefs = await prisma.userPreferences.findUnique({ where: { userId: authUser.id } });
+            if (prefs) {
+                const untypedPrefs = prefs as any;
+                if (untypedPrefs.screenerUniverses) {
+                    try { queryUniverses = JSON.parse(untypedPrefs.screenerUniverses); } catch { }
+                }
+            }
+            if (!queryUniverses || queryUniverses.length === 0) {
+                queryUniverses = ['SP500', 'NASDAQ100', 'CRYPTO'];
+            }
+        }
+
+        const all = await prisma.screenerSnapshot.findMany({
+            where: { universeName: { in: queryUniverses } },
+            orderBy: [{ date: 'desc' }, { score: 'desc' }]
+        });
+
+        // Deduplicate top 50 global
+        const seen = new Set<string>();
+        const snapshots = all.filter(s => {
+            if (seen.has(s.symbol)) return false;
+            seen.add(s.symbol);
+            return true;
+        }).sort((a, b) => b.score - a.score).slice(0, 50);
+
+        return { topCandidates: snapshots, filtersUsed: queryUniverses };
     });
 
     // --- AI Generation Orchestration ---
@@ -695,7 +757,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
     server.post('/api/admin/screener/run', { preValidation: [server.requireAdmin] }, async (req, reply) => {
         const schema = z.object({
-            universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO']),
+            universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO', 'TSX60', 'IBOV']),
             date: z.string()
         });
         const { universe, date } = schema.parse(req.body);

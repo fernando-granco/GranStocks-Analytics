@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 // Configuration
 // ---------------------------------------------------------------------------
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@granstocks.com';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'GranStocks <noreply@verify.granstocks.com>';
 const APP_ORIGIN = process.env.APP_ORIGIN || 'http://localhost:5173';
 
 const isEmailEnabled = !!RESEND_API_KEY && RESEND_API_KEY !== 'your_resend_api_key_here';

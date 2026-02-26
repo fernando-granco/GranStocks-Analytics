@@ -167,13 +167,13 @@ export class DailyJobService {
         // Hourly Screener Refresh
         cron.schedule('0 * * * *', async () => {
             console.log('[Screener] Refreshing top-level screeners for the hour...');
-            const universes = ['SP500', 'NASDAQ100', 'CRYPTO'];
+            const universes: Array<'SP500' | 'NASDAQ100' | 'CRYPTO' | 'TSX60' | 'IBOV'> = ['SP500', 'NASDAQ100', 'CRYPTO', 'TSX60', 'IBOV'];
             const date = new Date().toISOString().split('T')[0];
 
             for (const u of universes) {
                 const assetType = u === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
                 // Fire and forget so we don't stall the loop entirely, but could also await
-                ScreenerService.runScreenerJob(u as 'SP500' | 'NASDAQ100' | 'CRYPTO', date).catch(e => {
+                ScreenerService.runScreenerJob(u, date).catch(e => {
                     console.error(`[Screener] Hourly refresh failed for ${u}:`, e);
                 });
             }

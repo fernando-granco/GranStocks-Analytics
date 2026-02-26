@@ -13,7 +13,7 @@ import z from 'zod';
 export async function registerRoutes(server: FastifyInstance) {
 
     // --- Unified Global Search ---
-    server.get('/api/assets/search', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/assets/search', { preValidation: [server.authenticate], config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
         const { q } = req.query as { q?: string };
         if (!q || q.length < 2) return [];
 
@@ -187,25 +187,25 @@ export async function registerRoutes(server: FastifyInstance) {
         return await MarketData.getOverview(symbol, assetType);
     });
 
-    server.get('/api/data/metrics', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/data/metrics', { preValidation: [server.authenticate], config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req, reply) => {
         const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
         const { symbol, assetType } = schema.parse(req.query);
         return await MarketData.getMetrics(symbol, assetType);
     });
 
-    server.get('/api/data/fundamentals', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/data/fundamentals', { preValidation: [server.authenticate], config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
         const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
         const { symbol, assetType } = schema.parse(req.query);
         return await MarketData.getFundamentals(symbol, assetType);
     });
 
-    server.get('/api/data/earnings', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/data/earnings', { preValidation: [server.authenticate], config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
         const schema = z.object({ symbol: z.string().toUpperCase(), assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK') });
         const { symbol, assetType } = schema.parse(req.query);
         return await MarketData.getEarnings(symbol, assetType);
     });
 
-    server.get('/api/data/news', { preValidation: [server.authenticate] }, async (req, reply) => {
+    server.get('/api/data/news', { preValidation: [server.authenticate], config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
         const schema = z.object({
             symbol: z.string().toUpperCase(),
             assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK')
@@ -280,11 +280,12 @@ export async function registerRoutes(server: FastifyInstance) {
     // --- User Preferences ---
     server.get('/api/settings/preferences', { preValidation: [server.authenticate] }, async (req, reply) => {
         const authUser = req.user as { id: string };
+        const user = await prisma.user.findUnique({ where: { id: authUser.id }, select: { timezone: true } });
         let prefs = await prisma.userPreferences.findUnique({ where: { userId: authUser.id } });
 
         if (!prefs) {
             prefs = await prisma.userPreferences.create({
-                data: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', hideEmptyMarketOverview: false, hideEmptyCustomUniverses: false, hideEmptyPortfolio: false }
+                data: { userId: authUser.id, mode: 'BASIC', hideEmptyMarketOverview: false, hideEmptyCustomUniverses: false, hideEmptyPortfolio: false }
             });
         }
         const untypedPrefs = prefs as any;
@@ -297,7 +298,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
         return {
             mode: prefs.mode,
-            timezone: prefs.timezone,
+            timezone: user?.timezone || 'America/Toronto', // Canonical: User.timezone
             hideEmptyMarketOverview: prefs.hideEmptyMarketOverview,
             hideEmptyCustomUniverses: prefs.hideEmptyCustomUniverses,
             hideEmptyPortfolio: prefs.hideEmptyPortfolio,
@@ -317,16 +318,23 @@ export async function registerRoutes(server: FastifyInstance) {
         const updates = schema.parse(req.body);
         const authUser = req.user as { id: string };
 
-        // Validate timezone if provided
+        // Timezone is canonical on User, not UserPreferences
         if (updates.timezone) {
             try {
                 Intl.DateTimeFormat(undefined, { timeZone: updates.timezone });
             } catch (e) {
                 return reply.status(400).send({ error: 'Invalid IANA Timezone identifier.' });
             }
+            // Write to canonical User.timezone
+            await prisma.user.update({
+                where: { id: authUser.id },
+                data: { timezone: updates.timezone }
+            });
         }
 
-        const payload: any = { ...updates };
+        // Build payload without timezone (it lives on User now)
+        const { timezone: _tz, ...prefsUpdates } = updates;
+        const payload: any = { ...prefsUpdates };
         if (updates.screenerUniverses) {
             payload.screenerUniverses = JSON.stringify(updates.screenerUniverses);
         }
@@ -334,8 +342,10 @@ export async function registerRoutes(server: FastifyInstance) {
         const prefs = await prisma.userPreferences.upsert({
             where: { userId: authUser.id },
             update: payload,
-            create: { userId: authUser.id, mode: 'BASIC', timezone: 'America/Toronto', ...payload }
+            create: { userId: authUser.id, mode: 'BASIC', ...payload }
         });
+
+        const user = await prisma.user.findUnique({ where: { id: authUser.id }, select: { timezone: true } });
 
         const untypedPrefs = prefs as any;
         let parsedUniverses = ['SP500', 'NASDAQ100', 'CRYPTO'];
@@ -347,7 +357,7 @@ export async function registerRoutes(server: FastifyInstance) {
 
         return {
             mode: prefs.mode,
-            timezone: prefs.timezone,
+            timezone: user?.timezone || 'America/Toronto', // Canonical: User.timezone
             hideEmptyMarketOverview: prefs.hideEmptyMarketOverview,
             hideEmptyCustomUniverses: prefs.hideEmptyCustomUniverses,
             hideEmptyPortfolio: prefs.hideEmptyPortfolio,
@@ -704,9 +714,9 @@ export async function registerRoutes(server: FastifyInstance) {
     });
 
     // --- Admin: Backfill Price History ---
-    server.post('/api/admin/price-history/backfill', { preValidation: [server.requireAdmin] }, async (req, reply) => {
+    server.post('/api/admin/price-history/backfill', { preValidation: [server.requireAdmin], config: { rateLimit: { max: 5, timeWindow: '1 hour' } } }, async (req, reply) => {
         const schema = z.object({
-            universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO']).optional(),
+            universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO', 'TSX60', 'IBOV']).optional(),
             symbols: z.array(z.string()).optional()
         });
         const { universe, symbols } = schema.parse(req.body);
@@ -744,7 +754,7 @@ export async function registerRoutes(server: FastifyInstance) {
     });
 
     // --- Admin ---
-    server.post('/api/admin/run-daily', { preValidation: [server.requireAdmin] }, async (req, reply) => {
+    server.post('/api/admin/run-daily', { preValidation: [server.requireAdmin], config: { rateLimit: { max: 5, timeWindow: '1 hour' } } }, async (req, reply) => {
         const schema = z.object({ date: z.string().optional() });
         const { date } = schema.parse(req.query);
 
@@ -755,7 +765,7 @@ export async function registerRoutes(server: FastifyInstance) {
         return { status: "Job queued" };
     });
 
-    server.post('/api/admin/screener/run', { preValidation: [server.requireAdmin] }, async (req, reply) => {
+    server.post('/api/admin/screener/run', { preValidation: [server.requireAdmin], config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
         const schema = z.object({
             universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO', 'TSX60', 'IBOV']),
             date: z.string()

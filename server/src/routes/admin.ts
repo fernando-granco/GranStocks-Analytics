@@ -4,6 +4,38 @@ import { HistoryWarmQueue } from '../services/history-queue';
 import z from 'zod';
 import bcrypt from 'bcryptjs';
 
+/**
+ * Enforces role hierarchy: ADMIN can only act on USER; SUPERADMIN can act on anyone.
+ * Returns an error reply if denied, or null if allowed.
+ */
+async function enforceRoleHierarchy(
+    actorId: string,
+    targetId: string,
+    reply: FastifyReply,
+    requestedRole?: string
+): Promise<{ actor: any; target: any } | null> {
+    const [actor, target] = await Promise.all([
+        prisma.user.findUnique({ where: { id: actorId } }),
+        prisma.user.findUnique({ where: { id: targetId } })
+    ]);
+    if (!actor) { reply.status(401).send({ error: 'Actor not found' }); return null; }
+    if (!target) { reply.status(404).send({ error: 'User not found' }); return null; }
+
+    // ADMIN cannot modify another ADMIN or SUPERADMIN
+    if ((target.role === 'ADMIN' || target.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
+        reply.status(403).send({ error: 'Permission denied: Admins cannot modify other Admins or Superadmins.' });
+        return null;
+    }
+
+    // Only SUPERADMIN can assign ADMIN or SUPERADMIN roles
+    if (requestedRole && requestedRole !== 'USER' && actor.role !== 'SUPERADMIN') {
+        reply.status(403).send({ error: 'Permission denied: Only Superadmins can assign Admin or Superadmin roles.' });
+        return null;
+    }
+
+    return { actor, target };
+}
+
 export default async function adminRoutes(server: FastifyInstance) {
 
     // Auto-apply admin requirement to all routes in this plugin
@@ -34,28 +66,24 @@ export default async function adminRoutes(server: FastifyInstance) {
         });
         const { id } = req.params as { id: string };
         const updates = schema.parse(req.body);
-
         const authUser = req.user as { id: string };
 
-        // Prevent self-demotion or self-ban
-        if (id === authUser.id && (updates.role === 'USER' || updates.status === 'BANNED')) {
-            return reply.status(403).send({ error: "Cannot demote or ban yourself." });
+        // Prevent self-ban
+        if (id === authUser.id && updates.status === 'BANNED') {
+            return reply.status(403).send({ error: "Cannot ban yourself." });
         }
 
-        const targetUser = await prisma.user.findUnique({ where: { id } });
-        if (!targetUser) return reply.status(404).send({ error: "User not found" });
+        // Enforce role hierarchy (checks both target's current role AND requested role)
+        const hierarchy = await enforceRoleHierarchy(authUser.id, id, reply, updates.role);
+        if (!hierarchy) return; // Reply already sent
+        const { actor, target } = hierarchy;
 
-        const actor = await prisma.user.findUnique({ where: { id: authUser.id } });
-        if (!actor) return reply.status(401).send({ error: "Actor not found" });
-
-        // Admin peer-protection: Only SUPERADMIN can modify another ADMIN or SUPERADMIN
-        if ((targetUser.role === 'ADMIN' || targetUser.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
-            return reply.status(403).send({ error: "Permission denied: Admins cannot modify other Admins or Superadmins." });
-        }
-
-        // Privilege escalation protection: Only SUPERADMIN can grant SUPERADMIN role
-        if (updates.role === 'SUPERADMIN' && actor.role !== 'SUPERADMIN') {
-            return reply.status(403).send({ error: "Permission denied: Only Superadmins can assign the Superadmin role." });
+        // Last-SUPERADMIN self-demotion protection
+        if (id === authUser.id && updates.role && updates.role !== 'SUPERADMIN' && actor.role === 'SUPERADMIN') {
+            const superadminCount = await prisma.user.count({ where: { role: 'SUPERADMIN' } });
+            if (superadminCount <= 1) {
+                return reply.status(403).send({ error: "Cannot demote — you are the last Superadmin." });
+            }
         }
 
         const user = await prisma.user.update({
@@ -84,15 +112,9 @@ export default async function adminRoutes(server: FastifyInstance) {
 
         const { id } = req.params as { id: string };
         const authUser = req.user as { id: string };
-        const actor = await prisma.user.findUnique({ where: { id: authUser.id } });
-        const targetUser = await prisma.user.findUnique({ where: { id } });
 
-        if (!actor || !targetUser) return reply.status(404).send({ error: "User not found" });
-
-        // Admin peer-protection: Only SUPERADMIN can modify another ADMIN or SUPERADMIN
-        if ((targetUser.role === 'ADMIN' || targetUser.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
-            return reply.status(403).send({ error: "Permission denied: Admins cannot modify other Admins or Superadmins." });
-        }
+        const hierarchy = await enforceRoleHierarchy(authUser.id, id, reply);
+        if (!hierarchy) return;
 
         const schema = z.object({ newPassword: z.string().min(10) });
         const { newPassword } = schema.parse(req.body);
@@ -100,7 +122,7 @@ export default async function adminRoutes(server: FastifyInstance) {
         const passwordHash = await bcrypt.hash(newPassword, 10);
         await prisma.user.update({
             where: { id },
-            data: { passwordHash, mustChangePassword: true } // force them to change it on next login
+            data: { passwordHash, mustChangePassword: true }
         });
 
         await prisma.adminAuditLog.create({
@@ -119,18 +141,9 @@ export default async function adminRoutes(server: FastifyInstance) {
         const { id } = req.params as { id: string };
         const authUser = req.user as { id: string };
 
-        const actor = await prisma.user.findUnique({ where: { id: authUser.id } });
-        const targetUser = await prisma.user.findUnique({ where: { id } });
+        const hierarchy = await enforceRoleHierarchy(authUser.id, id, reply);
+        if (!hierarchy) return;
 
-        if (!actor || !targetUser) return reply.status(404).send({ error: "User not found" });
-
-        // Admin peer-protection: Only SUPERADMIN can modify another ADMIN or SUPERADMIN
-        if ((targetUser.role === 'ADMIN' || targetUser.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
-            return reply.status(403).send({ error: "Permission denied: Admins cannot modify other Admins or Superadmins." });
-        }
-
-        // In DEV: just flip the flag
-        // In PROD: ideally generate a token and shoot an email. For now, flip the flag.
         await prisma.user.update({
             where: { id },
             data: { mustChangePassword: true }
@@ -156,18 +169,9 @@ export default async function adminRoutes(server: FastifyInstance) {
             return reply.status(403).send({ error: "Cannot delete yourself." });
         }
 
-        const [user, actor] = await Promise.all([
-            prisma.user.findUnique({ where: { id } }),
-            prisma.user.findUnique({ where: { id: authUser.id } })
-        ]);
-
-        if (!user) return reply.status(404).send({ error: "User not found" });
-        if (!actor) return reply.status(401).send({ error: "Actor not found" });
-
-        // Admin peer-protection: Only SUPERADMIN can delete another ADMIN or SUPERADMIN
-        if ((user.role === 'ADMIN' || user.role === 'SUPERADMIN') && actor.role !== 'SUPERADMIN') {
-            return reply.status(403).send({ error: "Permission denied: Admins cannot delete other Admins or Superadmins." });
-        }
+        const hierarchy = await enforceRoleHierarchy(authUser.id, id, reply);
+        if (!hierarchy) return;
+        const { target: user } = hierarchy;
 
         // Clean up cascading relations to prevent foreign key constraint violations
         await prisma.$transaction([
@@ -232,7 +236,7 @@ export default async function adminRoutes(server: FastifyInstance) {
         const { code, maxUses, expiresDays } = schema.parse(req.body);
         const authUser = req.user as { id: string };
 
-        const finalCode = code || require('crypto').randomBytes(4).toString('hex').toUpperCase();
+        const finalCode = (code || require('crypto').randomBytes(4).toString('hex')).trim().toUpperCase();
         let expiresAt = null;
         if (expiresDays) {
             expiresAt = new Date();

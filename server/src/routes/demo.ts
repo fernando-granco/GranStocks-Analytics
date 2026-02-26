@@ -13,7 +13,7 @@ export default async function demoRoutes(server: FastifyInstance) {
     });
 
     server.get('/screener/:universe', async (req, reply) => {
-        const schema = z.object({ universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO']) });
+        const schema = z.object({ universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO', 'TSX60', 'IBOV']) });
         const { universe } = schema.parse(req.params);
 
         const meta = await prisma.demoSnapshotMeta.findFirst();

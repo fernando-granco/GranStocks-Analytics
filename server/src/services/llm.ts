@@ -17,6 +17,11 @@ export async function validateBaseUrl(urlStr: string | null | undefined, isCompa
         throw new Error('Base URL must use HTTPS');
     }
 
+    // Reject embedded credentials (user:pass@host)
+    if (url.username || url.password) {
+        throw new Error('Base URL must not contain embedded credentials');
+    }
+
     const hostname = url.hostname.toLowerCase();
 
     // Explicit Allowlist for known public providers
@@ -38,28 +43,49 @@ export async function validateBaseUrl(urlStr: string | null | undefined, isCompa
         throw new Error('Base URL cannot resolve to localhost');
     }
 
+    // Validate ALL resolved IPs (not just the first one)
     try {
-        const lookup = await dns.lookup(hostname);
-        const ip = lookup.address.toLowerCase();
+        const allIps: string[] = [];
 
-        // Check for loopback, link-local, private, and metadata IPs
-        if (ip === '127.0.0.1' || ip === '::1' ||
-            ip.startsWith('10.') ||
-            ip.startsWith('192.168.') ||
-            ip.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./) || // Private IPv4
-            ip.startsWith('169.254.') || // IPv4 Link-local / Cloud metadata (e.g. 169.254.169.254)
-            ip.startsWith('fe80:') || // IPv6 Link-local
-            ip.startsWith('fc') || ip.startsWith('fd') // IPv6 Private / ULA (includes fd00:ec2::254)
-        ) {
-            throw new Error('Base URL resolves to a forbidden private or link-local IP address');
+        // Resolve IPv4
+        try {
+            const ipv4Records = await dns.resolve4(hostname);
+            allIps.push(...ipv4Records);
+        } catch { /* NORECORD is OK — may be IPv6 only */ }
+
+        // Resolve IPv6
+        try {
+            const ipv6Records = await dns.resolve6(hostname);
+            allIps.push(...ipv6Records.map(ip => ip.toLowerCase()));
+        } catch { /* NORECORD is OK — may be IPv4 only */ }
+
+        // Fail closed: if no records at all, reject
+        if (allIps.length === 0) {
+            throw new Error(`Could not resolve hostname ${hostname}`);
+        }
+
+        for (const ip of allIps) {
+            if (
+                ip === '127.0.0.1' || ip === '::1' ||
+                ip.startsWith('10.') ||
+                ip.startsWith('192.168.') ||
+                /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip) || // Private IPv4
+                ip.startsWith('169.254.') || // IPv4 Link-local / Cloud metadata
+                ip.startsWith('0.') ||       // Current network
+                ip.startsWith('fe80:') ||    // IPv6 Link-local
+                ip.startsWith('fc') || ip.startsWith('fd') // IPv6 Private / ULA
+            ) {
+                throw new Error('Base URL resolves to a forbidden private or link-local IP address');
+            }
         }
     } catch (err: any) {
-        if (err.message.includes('forbidden private')) throw err;
+        if (err.message.includes('forbidden private') || err.message.includes('Could not resolve') || err.message.includes('credentials')) throw err;
         throw new Error(`Could not resolve hostname ${hostname}`);
     }
 
     return urlStr.replace(/\/$/, "");
 }
+
 
 export interface LLMProvider {
     generateNarrative(prompt: string, language?: string): Promise<string>;

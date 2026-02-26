@@ -5,12 +5,12 @@ After=network.target
 [Service]
 Type=simple
 User=root
-# Set Environment Variables here if not loading from dotenv
-# Environment=NODE_ENV=production
 WorkingDirectory=/var/www/granstocks/server
+EnvironmentFile=/var/www/granstocks/server/.env
 ExecStart=/usr/bin/node dist/index.js
 Restart=on-failure
 RestartSec=10
+Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target

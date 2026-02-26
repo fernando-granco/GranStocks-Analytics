@@ -38,7 +38,8 @@ model User {
 
 model Asset {
   symbol      String  @id
-  type        String  @default("STOCK") // Enum(STOCK) represented as string in SQLite
+  type        String  @default("STOCK") // Enum(STOCK, CRYPTO) represented as string in SQLite
+  market      String  @default("US")    // US, CA, BR, CRYPTO
   displayName String
   exchange    String?
   currency    String  @default("USD")

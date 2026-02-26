@@ -12,6 +12,13 @@ import z from 'zod';
 
 export async function registerRoutes(server: FastifyInstance) {
 
+    // Helper: derive market from symbol suffix
+    function deriveMarket(symbol: string): string {
+        if (symbol.endsWith('.TO')) return 'CA';
+        if (symbol.endsWith('.SA')) return 'BR';
+        return 'US';
+    }
+
     // --- Unified Global Search ---
     server.get('/api/assets/search', { preValidation: [server.authenticate], config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req, reply) => {
         const { q } = req.query as { q?: string };
@@ -20,30 +27,50 @@ export async function registerRoutes(server: FastifyInstance) {
         try {
             const fs = require('fs');
             const path = require('path');
-            const dbPath = path.join(__dirname, '..', 'data', 'finance_db.json');
-
-            if (!fs.existsSync(dbPath)) {
-                return [];
-            }
-
-            const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+            const results: any[] = [];
             const queryUpper = q.toUpperCase();
 
-            // Search by symbol or name
-            const results = data.filter((item: any) =>
-                (item.symbol && item.symbol.toUpperCase().includes(queryUpper)) ||
-                (item.name && item.name.toUpperCase().includes(queryUpper))
-            ).map((item: any) => ({
-                symbol: item.symbol,
-                name: item.name,
-                exchange: item.exchange,
-                type: 'STOCK' // Mock db only has stocks currently
-            }));
+            // 1. Search finance_db.json (US stocks with names)
+            const dbPath = path.join(__dirname, '..', 'data', 'finance_db.json');
+            if (fs.existsSync(dbPath)) {
+                const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+                const matches = data.filter((item: any) =>
+                    (item.symbol && item.symbol.toUpperCase().includes(queryUpper)) ||
+                    (item.name && item.name.toUpperCase().includes(queryUpper))
+                ).map((item: any) => ({
+                    symbol: item.symbol,
+                    name: item.name,
+                    exchange: item.exchange,
+                    market: 'US',
+                    type: 'STOCK'
+                }));
+                results.push(...matches);
+            }
 
-            // If it looks like a crypto pair, sneak one in too
+            // 2. Search TSX60 universe (Canadian stocks)
+            const tsxPath = path.join(__dirname, 'data', 'tsx60.json');
+            if (fs.existsSync(tsxPath)) {
+                const tsxSymbols: string[] = JSON.parse(fs.readFileSync(tsxPath, 'utf8'));
+                const tsxMatches = tsxSymbols
+                    .filter(sym => sym.toUpperCase().includes(queryUpper))
+                    .map(sym => ({ symbol: sym, name: sym.replace('.TO', ''), exchange: 'TSX', market: 'CA', type: 'STOCK' }));
+                results.push(...tsxMatches);
+            }
+
+            // 3. Search IBOV universe (Brazilian stocks)
+            const ibovPath = path.join(__dirname, 'data', 'ibov.json');
+            if (fs.existsSync(ibovPath)) {
+                const ibovSymbols: string[] = JSON.parse(fs.readFileSync(ibovPath, 'utf8'));
+                const ibovMatches = ibovSymbols
+                    .filter(sym => sym.toUpperCase().includes(queryUpper))
+                    .map(sym => ({ symbol: sym, name: sym.replace('.SA', ''), exchange: 'B3/IBOV', market: 'BR', type: 'STOCK' }));
+                results.push(...ibovMatches);
+            }
+
+            // 4. If it looks like a crypto pair, add it
             if (queryUpper.endsWith('USDT') || queryUpper === 'BTC' || queryUpper === 'ETH') {
                 const cryptoSym = queryUpper.endsWith('USDT') ? queryUpper : `${queryUpper}USDT`;
-                results.unshift({ symbol: cryptoSym, name: 'Binance Crypto Pair', exchange: 'CRYPTO', type: 'CRYPTO' });
+                results.unshift({ symbol: cryptoSym, name: 'Binance Crypto Pair', exchange: 'CRYPTO', market: 'CRYPTO', type: 'CRYPTO' });
             }
 
             return results.slice(0, 50); // Hard cap for UI performance
@@ -63,7 +90,9 @@ export async function registerRoutes(server: FastifyInstance) {
 
         // Quick validate against MarketData
         let displayName = symbol;
-        let exchange = 'US Market';
+        const market = assetType === 'CRYPTO' ? 'CRYPTO' : deriveMarket(symbol);
+        let exchange = market === 'CA' ? 'TSX' : market === 'BR' ? 'B3/IBOV' : 'US Market';
+        let currency = market === 'CA' ? 'CAD' : market === 'BR' ? 'BRL' : 'USD';
 
         if (assetType === 'STOCK') {
             const profile = await MarketData.getOverview(symbol, assetType);
@@ -84,8 +113,8 @@ export async function registerRoutes(server: FastifyInstance) {
 
         await prisma.asset.upsert({
             where: { symbol },
-            update: { displayName, isActive: true, type: assetType },
-            create: { symbol, displayName, exchange, type: assetType }
+            update: { displayName, isActive: true, type: assetType, market },
+            create: { symbol, displayName, exchange, type: assetType, market, currency }
         });
 
         const authUser = req.user as { id: string };

@@ -174,12 +174,26 @@ export default async function universeRoutes(server: FastifyInstance) {
         });
         if (!universe) return reply.status(404).send({ error: 'Universe not found' });
 
+        const results = await resolveUniverseAssets(universe);
+        if (!results) return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
+
+        setImmediate(() => {
+            import('../services/history-queue').then(q => {
+                results.forEach((r: any) => q.HistoryWarmQueue.enqueue(r.symbol, r.assetType || 'STOCK', 'universe_resolve').catch(() => { }));
+            }).catch(() => { });
+        });
+
+        return { universe, assets: results };
+    });
+
+    // Helper to dry up resolve logic
+    async function resolveUniverseAssets(universe: any) {
         let criteria: z.infer<typeof DefinitionSchema>;
         try {
             const rawJson = JSON.parse(universe.definitionJson);
             criteria = DefinitionSchema.parse(rawJson);
         } catch {
-            return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
+            return null;
         }
 
         const db = await getFinanceDb();
@@ -200,7 +214,7 @@ export default async function universeRoutes(server: FastifyInstance) {
                     country: isCrypto ? 'Global' : (localItem?.country || 'US')
                 };
             });
-            return { universe, assets: results };
+            return results;
         }
 
         if (criteria.q) {
@@ -233,13 +247,53 @@ export default async function universeRoutes(server: FastifyInstance) {
         if (criteria.industry !== undefined) results = results.filter(a => a.industry.toLowerCase() === criteria.industry!.toLowerCase());
         if (criteria.exchange !== undefined) results = results.filter(a => a.exchange.toLowerCase() === criteria.exchange!.toLowerCase());
 
-        setImmediate(() => {
-            import('../services/history-queue').then(q => {
-                results.forEach((r: any) => q.HistoryWarmQueue.enqueue(r.symbol, r.assetType || 'STOCK', 'universe_resolve').catch(() => { }));
-            }).catch(() => { });
-        });
+        return results;
+    }
 
-        return { universe, assets: results };
+    server.get('/universes/:id/analytics', async (req: FastifyRequest, reply: FastifyReply) => {
+        const authUser = req.user as { id: string };
+        const { id } = req.params as { id: string };
+        const schema = z.object({ range: z.enum(['1M', '3M', '6M', 'YTD', '1Y', 'ALL_TIME']).default('1Y') });
+        const { range } = schema.parse(req.query);
+
+        let days = 365; // Default 1Y for universes
+        if (range === '1M') days = 30;
+        if (range === '3M') days = 90;
+        if (range === '6M') days = 180;
+        if (range === 'ALL_TIME') days = 365 * 5;
+        if (range === 'YTD') {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            days = Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 3600 * 24));
+        }
+
+        const universe = await prisma.universe.findFirst({
+            where: { id, userId: authUser.id }
+        });
+        if (!universe) return reply.status(404).send({ error: 'Universe not found' });
+
+        const results = await resolveUniverseAssets(universe);
+        if (!results || results.length === 0) return reply.status(400).send({ error: 'Universe is empty' });
+
+        const { PriceHistoryService } = await import('../services/price-history');
+        const { GroupAnalysisEngine } = await import('../services/group-analysis');
+
+        const priceHistories: Record<string, any> = {};
+        await Promise.all(results.map(async (p: any) => {
+            const candles = await PriceHistoryService.getCandles(p.symbol, p.assetType as 'STOCK' | 'CRYPTO', days);
+            if (candles && (candles as any).s === 'ok') priceHistories[p.symbol] = candles;
+        }));
+
+        const engineResult = await GroupAnalysisEngine.analyzeGroup(results.map((p: any) => ({
+            symbol: p.symbol,
+            assetType: p.assetType as 'STOCK' | 'CRYPTO',
+            quantity: 1, // Equal weight assumption
+            averageCost: 0,
+            country: p.country,
+            sector: p.sector
+        })), priceHistories);
+
+        return reply.send(engineResult);
     });
 
     server.post('/universes/:id/analyze', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -257,73 +311,51 @@ export default async function universeRoutes(server: FastifyInstance) {
         });
         if (!config) return reply.status(400).send({ error: 'No active AI Provider configured. Please add one in Settings.' });
 
-        // Resolve assets (reusing logic from resolve route)
-        let criteria: z.infer<typeof DefinitionSchema>;
-        try {
-            const rawJson = JSON.parse(universe.definitionJson);
-            criteria = DefinitionSchema.parse(rawJson);
-        } catch {
-            return reply.status(400).send({ error: 'Malformed definitionJson in Universe' });
-        }
+        const results = await resolveUniverseAssets(universe);
+        if (!results || results.length === 0) return reply.status(400).send({ error: 'Universe is empty.' });
 
-        const db = await getFinanceDb();
-        let results: FinDBAsset[] = [];
+        let promptData: any[] = [];
+        const threeDaysAgoStr = new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0];
+        const symbols = results.map((r: any) => r.symbol);
 
-        // Support for manually constructed Watchlists (array of symbols)
-        if (Array.isArray(criteria.symbols)) {
-            results = criteria.symbols.map((symbolObj: any) => {
-                const isCrypto = symbolObj.assetType === 'CRYPTO';
-                const localItem = !isCrypto ? db.find((d: any) => d.symbol === symbolObj.symbol) : undefined;
-                return {
-                    symbol: symbolObj.symbol,
-                    assetType: symbolObj.assetType,
-                    name: localItem?.name || symbolObj.symbol,
-                    exchange: isCrypto ? 'Binance' : (localItem?.exchange || 'US Market'),
-                    sector: isCrypto ? 'Crypto' : (localItem?.sector || 'Unknown'),
-                    industry: isCrypto ? 'Crypto' : (localItem?.industry || 'Unknown'),
-                    country: isCrypto ? 'Global' : (localItem?.country || 'US')
-                };
-            });
-        } else if (criteria.q) {
-            try {
-                const fhRes = await FinnhubService.search(criteria.q);
-                if (fhRes && fhRes.result) {
-                    const fhResults = fhRes.result.filter((r: any) => !r.symbol.includes('.') && r.type !== 'Index');
-                    results = fhResults.map((r: any) => ({ symbol: r.symbol, name: r.description || r.symbol, exchange: 'US', sector: 'N/A', industry: 'N/A', country: 'US' }));
-                }
-            } catch (e) {
-                const lowerQ = criteria.q.toLowerCase();
-                results = db.filter(a => a.symbol.toLowerCase().includes(lowerQ) || a.name.toLowerCase().includes(lowerQ));
-            }
-        } else {
-            results = db;
-        }
-
-        if (criteria.sector !== undefined) results = results.filter(a => a.sector.toLowerCase() === criteria.sector!.toLowerCase());
-        if (criteria.industry !== undefined) results = results.filter(a => a.industry.toLowerCase() === criteria.industry!.toLowerCase());
-        if (criteria.exchange !== undefined) results = results.filter(a => a.exchange.toLowerCase() === criteria.exchange!.toLowerCase());
-
-        if (results.length === 0) return reply.status(400).send({ error: 'Universe is empty.' });
-
-        // Get latest indicators for these symbols
-        const symbols = results.map(r => r.symbol);
         const snapshots = await prisma.indicatorSnapshot.findMany({
-            where: { symbol: { in: symbols } },
+            where: { symbol: { in: symbols }, date: { gte: threeDaysAgoStr } },
             orderBy: { date: 'desc' },
             distinct: ['symbol']
         });
 
-        if (snapshots.length === 0) return reply.status(400).send({ error: 'No indicator data available for these assets yet. Wait for the daily job to complete.' });
+        if (snapshots.length > 0) {
+            promptData = snapshots.map(s => {
+                const ind = JSON.parse(s.indicatorsJson);
+                return {
+                    symbol: s.symbol,
+                    rsi: ind.rsi14,
+                    trend: ind.sma20 > ind.sma50 ? 'BULLISH' : 'BEARISH',
+                    volatility: ind.vol20
+                };
+            });
+        } else {
+            const { PriceHistoryService } = await import('../services/price-history');
+            const { GroupAnalysisEngine } = await import('../services/group-analysis');
+            const priceHistories: Record<string, any> = {};
+            await Promise.all(results.map(async (p: any) => {
+                const candles = await PriceHistoryService.getCandles(p.symbol, p.assetType as 'STOCK' | 'CRYPTO', 365);
+                if (candles && (candles as any).s === 'ok') priceHistories[p.symbol] = candles;
+            }));
 
-        const promptData = snapshots.map(s => {
-            const ind = JSON.parse(s.indicatorsJson);
-            return {
-                symbol: s.symbol,
-                rsi: ind.rsi14,
-                trend: ind.sma20 > ind.sma50 ? 'BULLISH' : 'BEARISH',
-                volatility: ind.vol20
-            };
-        });
+            const engineResult = await GroupAnalysisEngine.analyzeGroup(results.map((p: any) => ({
+                symbol: p.symbol,
+                assetType: p.assetType as 'STOCK' | 'CRYPTO',
+                quantity: 1,
+                averageCost: 0
+            })), priceHistories);
+
+            promptData = engineResult.positions.map(p => ({
+                symbol: p.symbol,
+                perf1Y: p.pnlPercent
+            }));
+            promptData.push({ GroupRisk: engineResult.risk.volatility, GroupDrawdown: engineResult.risk.maxDrawdown, BreadthBullish: engineResult.breadth.bullishPercent } as any);
+        }
 
         // Limit to 50 for prompt size
         const promptJson = JSON.stringify(promptData.slice(0, 50));

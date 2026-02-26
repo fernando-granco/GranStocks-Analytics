@@ -103,21 +103,6 @@ export default function Screener() {
         }
     });
 
-    const saveDefaultsMutation = useMutation({
-        mutationFn: async () => {
-            const res = await fetch('/api/settings/preferences', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ screenerUniverses: selectedUniverses })
-            });
-            if (!res.ok) throw new Error('Failed to save');
-            return res.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['preferences'] });
-            toast.success('Market preferences saved as default');
-        }
-    });
 
     useEffect(() => {
         if (!data?.topCandidates || data.topCandidates.length === 0) return;
@@ -159,56 +144,6 @@ export default function Screener() {
                     </button>
                 )}
             </div>
-
-            {/* Markets Configuration */}
-            <details className="group bg-neutral-900 border border-neutral-800 rounded-xl w-full [&_summary::-webkit-details-marker]:hidden">
-                <summary className="flex items-center justify-between p-4 cursor-pointer select-none outline-none">
-                    <h3 className="text-sm font-medium text-neutral-300 group-open:text-indigo-400 transition-colors">Manage Visible Markets...</h3>
-                    <span className="text-xs text-neutral-500 font-medium group-open:hidden">Click to configure</span>
-                </summary>
-                <div className="p-4 pt-0 mt-2 border-t border-neutral-800/50">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4 mb-4 border-b border-neutral-800/50">
-                        <p className="text-sm text-neutral-400">Select which markets appear as tabs below.</p>
-                        <button
-                            onClick={() => saveDefaultsMutation.mutate()}
-                            disabled={saveDefaultsMutation.isPending}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
-                        >
-                            Save as Default
-                        </button>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                        {[
-                            { id: 'SP500', label: '🇺🇸 S&P 500' },
-                            { id: 'NASDAQ100', label: '🇺🇸 NASDAQ 100' },
-                            { id: 'TSX60', label: '🇨🇦 TSX 60' },
-                            { id: 'IBOV', label: '🇧🇷 IBOVESPA' },
-                            { id: 'CRYPTO', label: '🪙 Crypto Top 100' }
-                        ].map(u => (
-                            <label key={u.id} className={cn(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors",
-                                selectedUniverses.includes(u.id)
-                                    ? "bg-indigo-500/10 border-indigo-500/50 text-indigo-300"
-                                    : "bg-neutral-800/50 border-neutral-700/50 text-neutral-400 hover:bg-neutral-800"
-                            )}>
-                                <input
-                                    type="checkbox"
-                                    className="hidden"
-                                    checked={selectedUniverses.includes(u.id)}
-                                    onChange={(e) => {
-                                        if (e.target.checked) {
-                                            setSelectedUniverses(prev => [...prev, u.id]);
-                                        } else {
-                                            setSelectedUniverses(prev => prev.filter(x => x !== u.id));
-                                        }
-                                    }}
-                                />
-                                {u.label}
-                            </label>
-                        ))}
-                    </div>
-                </div>
-            </details>
 
             {/* Display Tabs */}
             {selectedUniverses.length > 0 && (

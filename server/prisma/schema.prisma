@@ -338,6 +338,7 @@ model PortfolioPosition {
   assetType   String   @default("STOCK")
   quantity    Float
   averageCost Float
+  fees        Float?   @default(0)
   acquiredAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])

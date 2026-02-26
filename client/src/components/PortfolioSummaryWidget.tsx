@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PortfolioPosition } from './PortfolioTracker';
 import { Activity, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Sparkles, FolderDot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { PortfolioTracker } from './PortfolioTracker';
 import { usePreferences } from '../context/PreferencesContext';
 
@@ -14,6 +15,8 @@ export function PortfolioSummaryWidget() {
     const { hideEmptyPortfolio } = usePreferences();
     const { t } = useTranslation();
     const navigate = useNavigate();
+
+    const [history, setHistory] = useState<any[]>([]);
 
     const fetchPositions = async () => {
         setLoading(true);
@@ -27,15 +30,38 @@ export function PortfolioSummaryWidget() {
         }
     };
 
+    const fetchHistory = async () => {
+        try {
+            const res = await fetch(`/api/portfolio/historical?range=${timeSpan}`);
+            if (res.ok) setHistory(await res.json());
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     useEffect(() => {
         fetchPositions();
     }, []);
 
-    const totalValue = positions.reduce((acc, p) => acc + p.currentValue, 0);
-    const costBasis = positions.reduce((acc, p) => acc + (p.averageCost * p.quantity), 0);
-    const totalPnL = totalValue - costBasis;
-    const pnlPercent = costBasis > 0 ? (totalPnL / costBasis) * 100 : 0;
-    const isProfit = totalPnL >= 0;
+    useEffect(() => {
+        fetchHistory();
+    }, [timeSpan]); // Refetch chart history when timespan changes
+
+    const liveTotalValue = positions.reduce((acc, p) => acc + p.currentValue, 0);
+    const liveCostBasis = positions.reduce((acc, p) => acc + (p.averageCost * p.quantity), 0);
+
+    let displayValue = liveTotalValue;
+    let displayPnL = liveTotalValue - liveCostBasis;
+    let displayPercent = liveCostBasis > 0 ? (displayPnL / liveCostBasis) * 100 : 0;
+
+    if (timeSpan !== 'ALL_TIME' && history.length > 0) {
+        // Range-bound PnL calculation
+        const startValue = history[0].totalValue || liveCostBasis;
+        displayPnL = liveTotalValue - startValue;
+        displayPercent = startValue > 0 ? (displayPnL / startValue) * 100 : 0;
+    }
+
+    const isProfit = displayPnL >= 0;
 
     let bestPerformer = positions.length > 0 ? positions.reduce((prev, curr) => (prev.pnlPercent > curr.pnlPercent) ? prev : curr) : null;
     let worstPerformer = positions.length > 0 ? positions.reduce((prev, curr) => (prev.pnlPercent < curr.pnlPercent) ? prev : curr) : null;
@@ -81,18 +107,36 @@ export function PortfolioSummaryWidget() {
                 className="group bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 rounded-xl p-6 pb-8 shadow-lg relative overflow-hidden cursor-pointer hover:border-neutral-700 transition-colors"
                 title="Click to toggle Portfolio Tracker"
             >
-                <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-                    <Activity size={120} />
-                </div>
+                {/* Background Chart */}
+                {history.length > 0 ? (
+                    <div className="absolute inset-0 z-0 opacity-20 pointer-events-none" style={{ left: '-10px', right: '-10px', bottom: '-10px' }}>
+                        <ResponsiveContainer width="105%" height="110%">
+                            <AreaChart data={history}>
+                                <defs>
+                                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor={isProfit ? '#34d399' : '#f87171'} stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor={isProfit ? '#34d399' : '#f87171'} stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <YAxis domain={['dataMin - (dataMin * 0.01)', 'dataMax + (dataMax * 0.01)']} hide />
+                                <Area type="monotone" dataKey="totalValue" stroke={isProfit ? '#10b981' : '#ef4444'} fillOpacity={1} fill="url(#colorValue)" strokeWidth={2} isAnimationActive={false} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                ) : (
+                    <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                        <Activity size={120} />
+                    </div>
+                )}
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
                     <div>
                         <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-widest mb-1">{t('dashboard.portfolio.title')}</h2>
-                        <p className="text-4xl font-mono font-bold text-white">${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-4xl font-mono font-bold text-white">${displayValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         <div className="flex items-center gap-2 mt-2">
                             {isProfit ? <TrendingUp size={16} className="text-emerald-400" /> : <TrendingDown size={16} className="text-rose-400" />}
                             <span className={`font-semibold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                {isProfit ? '+' : ''}${totalPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({isProfit ? '+' : ''}{pnlPercent.toFixed(2)}%)
+                                {isProfit ? '+' : ''}${displayPnL.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({isProfit ? '+' : ''}{displayPercent.toFixed(2)}%)
                             </span>
                             <select
                                 value={timeSpan}

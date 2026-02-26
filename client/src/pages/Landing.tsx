@@ -14,13 +14,27 @@ import {
 
 export default function Landing() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, isLoading } = useAuth();
     const { t, i18n } = useTranslation();
 
     const toggleLanguage = () => {
         const nextLng = i18n.language === 'en' ? 'pt-BR' : 'en';
         i18n.changeLanguage(nextLng);
     };
+
+    React.useEffect(() => {
+        if (!isLoading && user) {
+            navigate('/app');
+        }
+    }, [user, isLoading, navigate]);
+
+    if (isLoading || user) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col font-sans">

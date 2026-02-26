@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../services/cache';
+import { HistoryWarmQueue } from '../services/history-queue';
 import z from 'zod';
 import bcrypt from 'bcryptjs';
 
@@ -278,5 +279,37 @@ export default async function adminRoutes(server: FastifyInstance) {
         });
 
         return { success: true };
+    });
+
+    // --- Jobs & Queue Status ---
+    server.get('/jobs', async (req: FastifyRequest, reply: FastifyReply) => {
+        const jobs = await prisma.jobState.findMany({
+            orderBy: { updatedAt: 'desc' }
+        });
+        const queue = HistoryWarmQueue.getQueueStatus();
+        return { jobs, queue };
+    });
+
+    // --- Cache Health Metrics ---
+    server.get('/cache-health', async (req: FastifyRequest, reply: FastifyReply) => {
+        const allStates = await prisma.symbolCacheState.findMany();
+        const ready = allStates.filter(s => s.status === 'READY').length;
+        const pending = allStates.filter(s => s.status === 'PENDING').length;
+        const failed = allStates.filter(s => s.status === 'FAILED').length;
+
+        const recentFailures = allStates
+            .filter(s => s.status === 'FAILED' && s.lastError)
+            .sort((a, b) => (b.lastAttemptAt?.getTime() || 0) - (a.lastAttemptAt?.getTime() || 0))
+            .slice(0, 10)
+            .map(s => ({ symbol: s.symbol, assetType: s.assetType, error: s.lastError, lastAttempt: s.lastAttemptAt }));
+
+        const cachedTotal = await prisma.cachedResponse.count();
+        const cachedStale = await prisma.cachedResponse.count({ where: { isStale: true } });
+
+        return {
+            symbols: { total: allStates.length, ready, pending, failed },
+            recentFailures,
+            cachedResponses: { total: cachedTotal, stale: cachedStale, fresh: cachedTotal - cachedStale }
+        };
     });
 }

@@ -109,6 +109,34 @@ export class FinnhubService {
         return fetchWithRateLimit(url, `quote:${symbol}`, 30); // 30 seconds
     }
 
+    static async getYahooQuote(symbol: string) {
+        try {
+            const cacheKey = `quote:yf:${symbol}`;
+            const cached = await CacheService.getCacheConfig(cacheKey);
+            if (cached && !cached.isStale) return JSON.parse(cached.payloadJson);
+
+            const result = await yahooFinance.quote(symbol);
+            if (!result) return null;
+
+            const data = {
+                symbol,
+                assetType: 'STOCK',
+                price: result.regularMarketPrice || result.preMarketPrice || 0,
+                changeAbs: result.regularMarketChange || 0,
+                changePct: result.regularMarketChangePercent || 0,
+                ts: Math.floor((result.regularMarketTime?.getTime() || Date.now()) / 1000),
+                source: 'YAHOO_FINANCE',
+                isStale: false
+            };
+
+            await CacheService.setCacheConfig(cacheKey, JSON.stringify(data), 60, 'YAHOO_FINANCE');
+            return data;
+        } catch (e) {
+            console.error(`Error fetching quote for ${symbol} via YahooFinance:`, e);
+            return null;
+        }
+    }
+
     static async getCandles(symbol: string, resolution: string, from: number, to: number) {
         // Finnhub Free tier is arbitrarily blocking /stock/candle (403). We bypass it entirely using yahoo-finance2.
         try {
@@ -157,7 +185,14 @@ export class FinnhubService {
         return fetchWithRateLimit(url, `news:${symbol}:${from}:${to}`, 21600); // 6 hours
     }
 
+    static async getGeneralNews(category: string) {
+        // category can be 'general', 'forex', 'crypto', 'merger'
+        const url = `${FINNHUB_BASE_URL}/news?category=${category}&token=${FINNHUB_API_KEY}`;
+        return fetchWithRateLimit(url, `news:general:${category}`, 14400); // 4 hours
+    }
+
     static async search(query: string) {
+
         const url = `${FINNHUB_BASE_URL}/search?q=${encodeURIComponent(query)}&token=${FINNHUB_API_KEY}`;
         // Cache search results for 24 hours to save API calls
         return fetchWithRateLimit(url, `search:${query}`, 86400);

@@ -18,18 +18,30 @@ export class MarketData {
                 try {
                     liveQuote = await AlphaVantageProvider.getQuote(symbol);
                 } catch (errAV) {
-                    const fhQuote = await FinnhubService.getQuote(symbol);
-                    if (!fhQuote || fhQuote.d === null) throw new Error('All providers failed');
-                    liveQuote = {
-                        symbol,
-                        assetType: 'STOCK',
-                        price: parseFloat(fhQuote.c),
-                        changeAbs: parseFloat(fhQuote.d),
-                        changePct: parseFloat(fhQuote.dp),
-                        ts: fhQuote.t,
-                        source: 'FINNHUB',
-                        isStale: false
-                    };
+                    let fhQuote;
+                    try {
+                        fhQuote = await FinnhubService.getQuote(symbol);
+                    } catch (e) {
+                        fhQuote = null;
+                    }
+
+                    if (!fhQuote || fhQuote.d === null) {
+                        // Fallback to Yahoo Finance for international stocks (e.g. .SA)
+                        const yfQuoteStr = await FinnhubService.getYahooQuote(symbol);
+                        if (!yfQuoteStr) throw new Error('All providers failed');
+                        liveQuote = yfQuoteStr;
+                    } else {
+                        liveQuote = {
+                            symbol,
+                            assetType: 'STOCK',
+                            price: parseFloat(fhQuote.c),
+                            changeAbs: parseFloat(fhQuote.d),
+                            changePct: parseFloat(fhQuote.dp),
+                            ts: fhQuote.t,
+                            source: 'FINNHUB',
+                            isStale: false
+                        };
+                    }
                 }
             }
         } catch (e) {
@@ -208,12 +220,21 @@ export class MarketData {
     }
 
     static async getNews(symbol: string, assetType: 'STOCK' | 'CRYPTO') {
-        if (assetType === 'CRYPTO') return [];
-
         const toDate = toDateString();
         const fromDate = toDateString(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
 
         try {
+            if (assetType === 'CRYPTO') {
+                const allCryptoNews = await FinnhubService.getGeneralNews('crypto');
+                if (!Array.isArray(allCryptoNews)) return [];
+
+                const s = symbol.replace('USD', '').toUpperCase();
+                return allCryptoNews.filter((n: any) =>
+                    (n.headline && n.headline.toUpperCase().includes(s)) ||
+                    (n.summary && n.summary.toUpperCase().includes(s))
+                ).slice(0, 10);
+            }
+
             return await FinnhubProvider.getNews(symbol, fromDate, toDate);
         } catch (e) {
             console.error('[MarketData] getNews Error:', e);

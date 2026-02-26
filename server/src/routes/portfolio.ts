@@ -52,9 +52,11 @@ export default async function portfolioRoutes(server: FastifyInstance) {
             symbol: z.string().toUpperCase(),
             assetType: z.enum(['STOCK', 'CRYPTO']).default('STOCK'),
             quantity: z.number().positive(),
-            averageCost: z.number().nonnegative()
+            averageCost: z.number().nonnegative(),
+            acquiredAt: z.string().datetime(),
+            fees: z.number().nonnegative().optional().default(0)
         });
-        const { symbol, assetType, quantity, averageCost } = schema.parse(req.body);
+        const { symbol, assetType, quantity, averageCost, acquiredAt, fees } = schema.parse(req.body);
         const authUser = req.user as { id: string };
 
         const pos = await prisma.portfolioPosition.create({
@@ -63,7 +65,9 @@ export default async function portfolioRoutes(server: FastifyInstance) {
                 symbol,
                 assetType,
                 quantity,
-                averageCost
+                averageCost,
+                acquiredAt: new Date(acquiredAt),
+                fees
             }
         });
 
@@ -87,6 +91,8 @@ export default async function portfolioRoutes(server: FastifyInstance) {
 
     // Historical Performance for Portfolio
     server.get('/historical', async (req: FastifyRequest, reply: FastifyReply) => {
+        const schema = z.object({ range: z.enum(['1M', '3M', '6M', 'YTD', '1Y', 'ALL_TIME']).default('ALL_TIME') });
+        const { range } = schema.parse(req.query);
         const authUser = req.user as { id: string };
 
         const positions = await prisma.portfolioPosition.findMany({
@@ -95,15 +101,28 @@ export default async function portfolioRoutes(server: FastifyInstance) {
 
         if (positions.length === 0) return [];
 
+        let days = 365 * 5; // Default ALL
+        if (range === '1M') days = 30;
+        if (range === '3M') days = 90;
+        if (range === '6M') days = 180;
+        if (range === '1Y') days = 365;
+        if (range === 'YTD') {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            days = Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 3600 * 24));
+        }
+
         const { PriceHistoryService } = await import('../services/price-history');
 
         const results = await Promise.all(positions.map(async (p) => {
-            const candles = await PriceHistoryService.getCandles(p.symbol, p.assetType as 'STOCK' | 'CRYPTO', 90);
-            return { symbol: p.symbol, candles };
+            const candles = await PriceHistoryService.getCandles(p.symbol, p.assetType as 'STOCK' | 'CRYPTO', days);
+            return { symbol: p.symbol, quantity: p.quantity, acquiredAt: p.acquiredAt.getTime(), candles };
         }));
 
+        const earliestAcquired = Math.min(...positions.map(p => p.acquiredAt.getTime()));
+
         const dataMap = new Map<number, any>();
-        results.forEach(({ symbol, candles }) => {
+        results.forEach(({ symbol, quantity, acquiredAt, candles }) => {
             if (!candles || (candles as any).s !== 'ok') return;
             const c = candles as any;
             const basePrice = c.c[0];
@@ -113,13 +132,57 @@ export default async function portfolioRoutes(server: FastifyInstance) {
                 d.setUTCHours(0, 0, 0, 0);
                 const dayTs = d.getTime();
 
-                if (!dataMap.has(dayTs)) dataMap.set(dayTs, { dateStr: d.toLocaleDateString(), timestamp: dayTs });
+                // Skip dates before the first asset was ever acquired
+                if (dayTs < new Date(earliestAcquired).setUTCHours(0, 0, 0, 0)) continue;
+
+                if (!dataMap.has(dayTs)) dataMap.set(dayTs, { dateStr: d.toLocaleDateString(), timestamp: dayTs, totalValue: 0 });
                 const row = dataMap.get(dayTs);
+
+                // Keep the % returns for the Portfolio Analysis charting compatibility
                 row[symbol] = ((c.c[i] - basePrice) / basePrice) * 100;
+
+                // Add absolute value to the aggregate if owned on this date
+                if (dayTs >= (new Date(acquiredAt).setUTCHours(0, 0, 0, 0) || 0)) {
+                    row.totalValue += c.c[i] * quantity;
+                }
             }
         });
 
-        return Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+        // Filter out any trailing zeros if there are glitches, but mainly return sorted array
+        const sortedArray = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+        return sortedArray;
+    });
+
+    // Rich Analytical Summary for Portfolio
+    server.get('/analytics', async (req: FastifyRequest, reply: FastifyReply) => {
+        const authUser = req.user as { id: string };
+
+        const positions = await prisma.portfolioPosition.findMany({
+            where: { userId: authUser.id }
+        });
+
+        if (positions.length === 0) return reply.send(null);
+
+        const { PriceHistoryService } = await import('../services/price-history');
+        const { GroupAnalysisEngine } = await import('../services/group-analysis');
+
+        // Fetch 1-year history for analytical modeling
+        const priceHistories: Record<string, any> = {};
+        await Promise.all(positions.map(async (p) => {
+            const candles = await PriceHistoryService.getCandles(p.symbol, p.assetType as 'STOCK' | 'CRYPTO', 365);
+            if (candles && (candles as any).s === 'ok') {
+                priceHistories[p.symbol] = candles;
+            }
+        }));
+
+        const result = await GroupAnalysisEngine.analyzeGroup(positions.map(p => ({
+            symbol: p.symbol,
+            assetType: p.assetType as 'STOCK' | 'CRYPTO',
+            quantity: p.quantity,
+            averageCost: p.averageCost
+        })), priceHistories);
+
+        return reply.send(result);
     });
 
     // Run AI Analysis for Portfolio
@@ -138,23 +201,50 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         if (positions.length === 0) return reply.status(400).send({ error: 'Portfolio is empty.' });
 
         const symbols = positions.map(p => p.symbol);
+
+        // 1. Try to get Snapshots
+        let promptData: any[] = [];
+        const threeDaysAgoStr = new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0];
         const snapshots = await prisma.indicatorSnapshot.findMany({
-            where: { symbol: { in: symbols } },
+            where: { symbol: { in: symbols }, date: { gte: threeDaysAgoStr } },
             orderBy: { date: 'desc' },
             distinct: ['symbol']
         });
 
-        if (snapshots.length === 0) return reply.status(400).send({ error: 'No indicator data available for these assets yet.' });
+        if (snapshots.length > 0) {
+            promptData = snapshots.map(s => {
+                const ind = JSON.parse(s.indicatorsJson);
+                return {
+                    symbol: s.symbol,
+                    rsi: ind.rsi14,
+                    trend: ind.sma20 > ind.sma50 ? 'BULLISH' : 'BEARISH',
+                    volatility: ind.vol20
+                };
+            });
+        } else {
+            // 2. Fallback to runtime GroupAnalysisEngine if Cron hasn't run
+            const { PriceHistoryService } = await import('../services/price-history');
+            const { GroupAnalysisEngine } = await import('../services/group-analysis');
+            const priceHistories: Record<string, any> = {};
+            await Promise.all(positions.map(async (p) => {
+                const candles = await PriceHistoryService.getCandles(p.symbol, p.assetType as 'STOCK' | 'CRYPTO', 365);
+                if (candles && (candles as any).s === 'ok') priceHistories[p.symbol] = candles;
+            }));
 
-        const promptData = snapshots.map(s => {
-            const ind = JSON.parse(s.indicatorsJson);
-            return {
-                symbol: s.symbol,
-                rsi: ind.rsi14,
-                trend: ind.sma20 > ind.sma50 ? 'BULLISH' : 'BEARISH',
-                volatility: ind.vol20
-            };
-        });
+            const engineResult = await GroupAnalysisEngine.analyzeGroup(positions.map(p => ({
+                symbol: p.symbol,
+                assetType: p.assetType as 'STOCK' | 'CRYPTO',
+                quantity: p.quantity,
+                averageCost: p.averageCost
+            })), priceHistories);
+
+            promptData = engineResult.positions.map(p => ({
+                symbol: p.symbol,
+                weight: p.weight,
+                pnl: p.pnlPercent
+            }));
+            promptData.push({ PortfolioRisk: engineResult.risk.volatility, PortfolioDrawdown: engineResult.risk.maxDrawdown, BreadthBullish: engineResult.breadth.bullishPercent } as any);
+        }
 
         const promptJson = JSON.stringify(promptData.slice(0, 50));
         const date = new Date().toISOString().split('T')[0];

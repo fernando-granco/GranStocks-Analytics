@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Blocks, ArrowLeft, Sparkles, AlertCircle, LineChart as ChartIcon } from 'lucide-react';
+import { Blocks, ArrowLeft, Sparkles, AlertCircle, LineChart as ChartIcon, Activity, ShieldAlert, LayoutGrid, Award } from 'lucide-react';
 import { usePreferences } from '../context/PreferencesContext';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
@@ -13,6 +13,7 @@ export default function UniverseDetail() {
     const navigate = useNavigate();
     const { mode } = usePreferences();
     const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+    const [timeSpan, setTimeSpan] = useState('1Y');
 
     const queryClient = useQueryClient();
 
@@ -34,14 +35,23 @@ export default function UniverseDetail() {
         }
     });
 
-    const { data: historicalData } = useQuery({
-        queryKey: ['universe-historical', id],
+    const { data: analytics, isLoading: analyticsLoading } = useQuery({
+        queryKey: ['universe-analytics', id, timeSpan],
         queryFn: async () => {
-            const res = await fetch(`/api/universes/${id}/historical`);
-            if (!res.ok) return [];
+            const res = await fetch(`/api/universes/${id}/analytics?range=${timeSpan}`);
+            if (!res.ok) return null;
             return res.json();
         }
     });
+
+    const timeSpanLabel = {
+        '1M': '1-Month',
+        '3M': '3-Month',
+        '6M': '6-Month',
+        'YTD': 'YTD',
+        '1Y': '1-Year',
+        'ALL_TIME': 'All Time'
+    }[timeSpan] || '1-Year';
 
     const [items, setItems] = useState<any[]>([]);
     useEffect(() => {
@@ -99,7 +109,7 @@ export default function UniverseDetail() {
         onError: (err: any) => alert(err.message)
     });
 
-    if (isLoading) return <div className="p-8 text-neutral-500 animate-pulse text-center">Loading universe data...</div>;
+    if (isLoading || analyticsLoading) return <div className="p-8 text-neutral-500 animate-pulse text-center">Loading universe data...</div>;
 
     const universe = resolveData?.universe;
 
@@ -143,16 +153,105 @@ export default function UniverseDetail() {
                 </div>
             )}
 
-            {/* Historical Plot */}
-            {historicalData && historicalData.length > 0 && (
+            {analytics && analytics.summary && (
+                <>
+                    {/* Quantitative Summary Cards */}
+                    <div className="flex justify-between items-center mb-2 mt-8">
+                        <h2 className="text-xl font-bold tracking-tight">Group Analytics</h2>
+                        <select
+                            value={timeSpan}
+                            onChange={(e) => setTimeSpan(e.target.value)}
+                            className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-sm rounded-lg px-3 py-1.5 outline-none cursor-pointer hover:text-white transition-colors"
+                        >
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="YTD">YTD</option>
+                            <option value="1Y">1 Year</option>
+                            <option value="ALL_TIME">All Time</option>
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><Activity size={14} /> {timeSpanLabel} Return</div>
+                            <div className={`text-2xl font-bold tracking-tight ${analytics.summary.pnlPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {analytics.summary.pnlPercent > 0 ? '+' : ''}{analytics.summary.pnlPercent.toFixed(2)}%
+                            </div>
+                        </div>
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><ShieldAlert size={14} /> Volatility (Ann.)</div>
+                            <div className="text-2xl font-bold tracking-tight text-white">{(analytics.risk.volatility * 100).toFixed(2)}%</div>
+                        </div>
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><ChartIcon size={14} /> Max Drawdown</div>
+                            <div className="text-2xl font-bold tracking-tight text-rose-500">-{Math.abs(analytics.risk.maxDrawdown).toFixed(2)}%</div>
+                        </div>
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><LayoutGrid size={14} /> Breadth (Above 50 MA)</div>
+                            <div className="text-2xl font-bold tracking-tight text-white">{(analytics.breadth.aboveSma50).toFixed(0)}%</div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Leaders and Laggards */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 md:col-span-1 border-l-4 border-l-emerald-500">
+                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Award size={18} className="text-emerald-400" /> Leaders & Laggards</h2>
+                            <div className="space-y-4">
+                                <div>
+                                    <h3 className="text-xs uppercase text-neutral-500 font-bold mb-2">Top Performers ({timeSpan})</h3>
+                                    {analytics.positions.slice(0, 3).map((p: any) => (
+                                        <div key={p.symbol} className="flex justify-between text-sm py-1 border-b border-neutral-800/50 last:border-0">
+                                            <span className="font-medium text-white">{p.symbol}</span>
+                                            <span className="text-emerald-400">+{p.pnlPercent.toFixed(2)}%</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div>
+                                    <h3 className="text-xs uppercase text-neutral-500 font-bold mb-2 mt-4">Bottom Performers ({timeSpan})</h3>
+                                    {analytics.positions.slice(-3).reverse().map((p: any) => (
+                                        <div key={p.symbol} className="flex justify-between text-sm py-1 border-b border-neutral-800/50 last:border-0">
+                                            <span className="font-medium text-white">{p.symbol}</span>
+                                            <span className="text-rose-400">{p.pnlPercent.toFixed(2)}%</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Group Value AreaChart */}
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 md:col-span-2">
+                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                <ChartIcon size={18} className="text-indigo-400" /> Group Aggregate Performance ({timeSpan})
+                            </h2>
+                            <div className="h-[250px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={analytics.performance.history.map((h: any) => ({ ...h, dateStr: new Date(h.timestamp).toLocaleDateString() }))} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+                                        <XAxis dataKey="dateStr" stroke="#525252" fontSize={12} tickMargin={10} minTickGap={30} />
+                                        <YAxis stroke="#525252" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `$${v.toFixed(0)}`} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
+                                            formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Equal Weight Group Index']}
+                                            labelStyle={{ color: '#a3a3a3' }}
+                                        />
+                                        <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+            {/* Historical Compare Plot */}
+            {analytics && analytics.performance && analytics.performance.history && (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
                     <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <ChartIcon size={18} className="text-indigo-400" />
-                        Historical Performance (Normalized %)
+                        Component Return Comparison (Normalized %)
                     </h2>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={historicalData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                            <LineChart data={analytics.performance.history.map((h: any) => ({ ...h, dateStr: new Date(h.timestamp).toLocaleDateString() }))} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
                                 <XAxis dataKey="dateStr" stroke="#525252" fontSize={12} tickMargin={10} minTickGap={30} />
                                 <YAxis stroke="#525252" fontSize={12} tickFormatter={(val) => `${val.toFixed(0)}%`} />

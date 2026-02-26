@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Loader2 } from 'lucide-react';
 
 export default function Register() {
     const [email, setEmail] = useState('');
@@ -10,7 +10,7 @@ export default function Register() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, user, isLoading } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,6 +40,20 @@ export default function Register() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!isLoading && user) {
+            navigate('/app');
+        }
+    }, [user, isLoading, navigate]);
+
+    if (isLoading || user) {
+        return (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-4">

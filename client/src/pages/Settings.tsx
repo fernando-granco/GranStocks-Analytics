@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trash2, Copy, Info } from 'lucide-react';
 import { AccountProfile } from '../components/AccountProfile';
@@ -59,6 +59,37 @@ export default function Settings() {
     const { t } = useTranslation();
 
     const [activeTab, setActiveTab] = useState<'ACCOUNT' | 'ANALYSIS' | 'PROVIDERS'>('ACCOUNT');
+
+    const { data: prefsData } = useQuery({
+        queryKey: ['preferences'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/preferences');
+            if (!res.ok) return null;
+            return res.json();
+        }
+    });
+
+    const [selectedUniverses, setSelectedUniverses] = useState<string[]>(['SP500', 'NASDAQ100', 'CRYPTO']);
+    useEffect(() => {
+        if (prefsData?.screenerUniverses && Array.isArray(prefsData.screenerUniverses)) {
+            setSelectedUniverses(prefsData.screenerUniverses);
+        }
+    }, [prefsData]);
+
+    const saveScreenerPrefsMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/settings/preferences', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ screenerUniverses: selectedUniverses })
+            });
+            if (!res.ok) throw new Error('Failed to save screener presets');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['preferences'] });
+            alert('Screener Market Preferences Saved!');
+        }
+    });
 
     const [analysisMode, setAnalysisMode] = useState<'BASIC' | 'ADVANCED'>('BASIC');
     const [selectedRiskProfile, setSelectedRiskProfile] = useState('CONSERVATIVE');
@@ -278,6 +309,39 @@ export default function Settings() {
             {activeTab === 'ANALYSIS' && (
                 <div className="space-y-8">
                     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+                        <h3 className="text-xl font-semibold mb-4">Screener Markets</h3>
+                        <p className="text-neutral-500 text-sm mb-4">Select which markets appear as tabs in the Screener.</p>
+                        <div className="flex flex-wrap gap-3 mb-6">
+                            {[
+                                { id: 'SP500', label: '🇺🇸 S&P 500' },
+                                { id: 'NASDAQ100', label: '🇺🇸 NASDAQ 100' },
+                                { id: 'TSX60', label: '🇨🇦 TSX 60' },
+                                { id: 'IBOV', label: '🇧🇷 IBOVESPA' },
+                                { id: 'CRYPTO', label: '🪙 Crypto Top 100' }
+                            ].map(u => {
+                                const isSelected = selectedUniverses.includes(u.id);
+                                return (
+                                    <label key={u.id} className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm cursor-pointer transition-colors ${isSelected ? "bg-indigo-500/10 border-indigo-500/50 text-indigo-300" : "bg-neutral-800/50 border-neutral-700/50 text-neutral-400 hover:bg-neutral-800"}`}>
+                                        <input
+                                            type="checkbox"
+                                            className="hidden"
+                                            checked={isSelected}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedUniverses(prev => [...prev, u.id]);
+                                                else setSelectedUniverses(prev => prev.filter(x => x !== u.id));
+                                            }}
+                                        />
+                                        {u.label}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                        <button onClick={() => saveScreenerPrefsMutation.mutate()} disabled={saveScreenerPrefsMutation.isPending} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors">
+                            {saveScreenerPrefsMutation.isPending ? 'Saving...' : 'Save Market Preferences'}
+                        </button>
+                    </div>
+
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
                         <h3 className="text-xl font-semibold mb-4">{t('settings.analysis.title')}</h3>
                         <p className="text-neutral-500 text-sm mb-6">{t('settings.analysis.desc')}</p>
 
@@ -368,21 +432,39 @@ export default function Settings() {
                         <p className="text-neutral-500 text-sm mb-6">{t('settings.prompts.desc')}</p>
 
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-400 mb-2">Target Role / Context:</label>
-                                <select value={promptRole} onChange={e => setPromptRole(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
-                                    <option value="CONSENSUS">Consensus / Daily Snapshot</option>
-                                    <option value="SCREENER">Screener Narrative</option>
-                                    <option value="RISK">Risk Assessment</option>
-                                </select>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Target Role / Context:</label>
+                                    <select value={promptRole} onChange={e => setPromptRole(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                                        <option value="CONSENSUS">Consensus / Daily Snapshot</option>
+                                        <option value="SCREENER">Screener Narrative</option>
+                                        <option value="RISK">Risk Assessment</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Output Format:</label>
+                                    <select value={promptOutputMode} onChange={e => setPromptOutputMode(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
+                                        <option value="TEXT_ONLY">Text Only</option>
+                                        <option value="MARKDOWN">Markdown</option>
+                                        <option value="JSON_STRICT">Strict JSON (Beta)</option>
+                                        <option value="ACTION_LABELS">Action Labels (Buy/Sell)</option>
+                                    </select>
+                                </div>
                             </div>
+
+                            {promptOutputMode === 'ACTION_LABELS' && (
+                                <p className="text-xs text-amber-400 bg-amber-500/10 p-3 rounded border border-amber-500/20">
+                                    <b>{t('settings.prompts.disclaimer_title')}</b> {t('settings.prompts.disclaimer_body')}
+                                </p>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-neutral-400 mb-2">Prompt Template:</label>
                                 <textarea
                                     value={promptText}
                                     onChange={e => setPromptText(e.target.value)}
-                                    className="w-full h-32 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 resize-none"
+                                    className="w-full h-32 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 resize-none font-mono text-sm leading-relaxed"
+                                    placeholder="Enter your custom prompt instruction here..."
                                 />
                                 {promptText.includes('{{') && (
                                     <div className="mt-2 p-3 bg-neutral-900 border border-neutral-800 rounded text-xs text-neutral-400 font-mono whitespace-pre-wrap">
@@ -393,31 +475,6 @@ export default function Settings() {
                                             .replace(/{{EVIDENCE_PACK}}/g, '{"vol": 0.2, "rsi": 45, "trend": "BULLISH"}')
                                             .replace(/{{EVIDENCE_PACK_JSON}}/g, '{"vol": 0.2, "rsi": 45, "trend": "BULLISH"}')}
                                     </div>
-                                )}
-                            </div>
-
-                            <div className="bg-neutral-950 p-4 border border-neutral-800 rounded-lg space-y-4">
-                                <label className="block text-sm font-medium text-neutral-400 mb-2">Advanced Modules:</label>
-                                <button
-                                    type="button"
-                                    onClick={() => setPromptOutputMode(prev => prev === 'ACTION_LABELS' ? 'TEXT_ONLY' : 'ACTION_LABELS')}
-                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${promptOutputMode === 'ACTION_LABELS'
-                                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                                        : 'bg-neutral-900 border-neutral-700 text-neutral-300 hover:bg-neutral-800'
-                                        }`}
-                                >
-                                    <div className="flex flex-col text-left">
-                                        <span className="font-medium">{t('settings.prompts.force_action_labels')}</span>
-                                        <span className="text-xs opacity-70">{t('settings.prompts.force_action_labels_desc')}</span>
-                                    </div>
-                                    <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors ${promptOutputMode === 'ACTION_LABELS' ? 'bg-rose-500' : 'bg-neutral-700'}`}>
-                                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${promptOutputMode === 'ACTION_LABELS' ? 'translate-x-4' : 'translate-x-0'}`} />
-                                    </div>
-                                </button>
-                                {promptOutputMode === 'ACTION_LABELS' && (
-                                    <p className="text-xs text-rose-400 bg-rose-500/10 p-3 rounded border border-rose-500/20">
-                                        <b>{t('settings.prompts.disclaimer_title')}</b> {t('settings.prompts.disclaimer_body')}
-                                    </p>
                                 )}
                             </div>
                         </div>

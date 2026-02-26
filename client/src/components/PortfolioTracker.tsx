@@ -12,6 +12,7 @@ export interface PortfolioPosition {
     currentValue: number;
     unrealizedPnL: number;
     pnlPercent: number;
+    fees?: number;
     isInvalid?: boolean;
 }
 
@@ -23,6 +24,8 @@ export function PortfolioTracker() {
     const [formSymbol, setFormSymbol] = useState('');
     const [formQty, setFormQty] = useState('');
     const [formPrice, setFormPrice] = useState('');
+    const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+    const [formFees, setFormFees] = useState('');
     const [formAssetType, setFormAssetType] = useState<'STOCK' | 'CRYPTO'>('STOCK');
     const [showAddForm, setShowAddForm] = useState(false);
 
@@ -58,13 +61,17 @@ export function PortfolioTracker() {
                     symbol: formSymbol.toUpperCase(),
                     assetType: formAssetType,
                     quantity: parseFloat(formQty),
-                    averageCost: parseFloat(formPrice)
+                    averageCost: parseFloat(formPrice),
+                    acquiredAt: new Date(formDate).toISOString(),
+                    fees: formFees ? parseFloat(formFees) : 0
                 })
             });
             if (res.ok) {
                 setFormSymbol('');
                 setFormQty('');
                 setFormPrice('');
+                setFormDate(new Date().toISOString().split('T')[0]);
+                setFormFees('');
                 fetchPositions();
             } else {
                 const data = await res.json();
@@ -118,11 +125,11 @@ export function PortfolioTracker() {
 
             {showAddForm && (
                 <div className="mb-8 p-4 bg-black/20 rounded-xl border border-white/5">
-                    <form onSubmit={handleAdd} className="grid grid-cols-5 gap-4">
+                    <form onSubmit={handleAdd} className="flex flex-wrap md:flex-nowrap gap-3 items-center">
                         <input
                             type="text"
-                            placeholder="Symbol (e.g. AAPL or BTC)"
-                            className="col-span-1 bg-black border border-neutral-800 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 uppercase"
+                            placeholder="Symbol (AAPL/BTC)"
+                            className="flex-1 min-w-[120px] bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 uppercase"
                             value={formSymbol}
                             onChange={e => setFormSymbol(e.target.value.toUpperCase())}
                             required
@@ -130,7 +137,7 @@ export function PortfolioTracker() {
                         <select
                             value={formAssetType}
                             onChange={e => setFormAssetType(e.target.value as 'STOCK' | 'CRYPTO')}
-                            className="col-span-1 bg-black border border-neutral-800 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                            className="w-24 bg-black border border-neutral-800 rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                         >
                             <option value="STOCK">Stock</option>
                             <option value="CRYPTO">Crypto</option>
@@ -138,9 +145,9 @@ export function PortfolioTracker() {
                         <input
                             type="number"
                             step="any"
-                            placeholder="Quantity"
+                            placeholder="Qty"
                             min="0.00000001"
-                            className="col-span-1 bg-black border border-neutral-800 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                            className="w-24 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                             value={formQty}
                             onChange={e => setFormQty(e.target.value)}
                             required
@@ -150,14 +157,30 @@ export function PortfolioTracker() {
                             step="any"
                             placeholder="Avg Cost $"
                             min="0"
-                            className="col-span-1 bg-black border border-neutral-800 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                            className="w-28 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                             value={formPrice}
                             onChange={e => setFormPrice(e.target.value)}
                             required
                         />
+                        <input
+                            type="date"
+                            className="w-36 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-300 focus:outline-none focus:border-indigo-500"
+                            value={formDate}
+                            onChange={e => setFormDate(e.target.value)}
+                            required
+                        />
+                        <input
+                            type="number"
+                            step="any"
+                            placeholder="Fees $"
+                            min="0"
+                            className="w-24 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                            value={formFees}
+                            onChange={e => setFormFees(e.target.value)}
+                        />
                         <button
                             type="submit"
-                            className="col-span-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors"
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors whitespace-nowrap shadow-sm"
                         >
                             {t('dashboard.portfolio.submit')}
                         </button>

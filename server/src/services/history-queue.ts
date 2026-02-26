@@ -7,6 +7,15 @@ export class HistoryWarmQueue {
     private static pendingQueue: { assetType: 'STOCK' | 'CRYPTO', symbol: string }[] = [];
     private static pendingSet = new Set<string>();
 
+    /** Expose queue state for admin dashboard */
+    static getQueueStatus() {
+        return {
+            pending: this.pendingQueue.length,
+            processing: this.isProcessing,
+            pendingSymbols: this.pendingQueue.slice(0, 20).map(p => `${p.symbol} (${p.assetType})`)
+        };
+    }
+
     /**
      * Enqueues a symbol to have its 3-year history cached.
      * Deduplicates in-memory to prevent spamming.

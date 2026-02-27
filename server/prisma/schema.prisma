@@ -31,9 +31,22 @@ model User {
   targetAudits   AdminAuditLog[]      @relation("target")
   AnalysisConfig AnalysisConfig[]
   PromptTemplate PromptTemplate[]
-  AlertGroup        AlertRule[]
-  PortfolioGroup    PortfolioPosition[]
-  InviteCodeUse     InviteCodeUse[]
+  AlertRule      AlertRule[]
+  portfolios     Portfolio[]
+  positions      PortfolioPosition[]
+  InviteCodeUse  InviteCodeUse[]
+}
+
+model Portfolio {
+  id           String   @id @default(uuid())
+  userId       String
+  name         String
+  baseCurrency String   @default("USD")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user      User                @relation(fields: [userId], references: [id])
+  positions PortfolioPosition[]
 }
 
 model Asset {
@@ -335,6 +348,7 @@ model AlertRule {
 model PortfolioPosition {
   id          String   @id @default(uuid())
   userId      String
+  portfolioId String?
   symbol      String
   assetType   String   @default("STOCK")
   quantity    Float
@@ -342,7 +356,8 @@ model PortfolioPosition {
   fees        Float?   @default(0)
   acquiredAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+  portfolio Portfolio? @relation(fields: [portfolioId], references: [id])
 }
 
 model AssetFundamental {

@@ -70,12 +70,15 @@ export class GroupAnalysisEngine {
     }
 
     static async analyzeGroup(
-        assets: GroupAssetInput[],
-        priceHistories: Record<string, any>
+        assets: (GroupAssetInput & { currency?: string })[],
+        priceHistories: Record<string, any>,
+        baseCurrency: string = 'USD'
     ): Promise<GroupAnalysisResult> {
+        const { FXService } = await import('./fx');
+        const { prisma } = await import('./cache');
 
-        let totalValue = 0;
-        let costBasis = 0;
+        let totalValueBase = 0;
+        let costBasisBase = 0;
         let best: any = null;
         let worst: any = null;
         let bullishCount = 0;
@@ -87,106 +90,155 @@ export class GroupAnalysisEngine {
         const byType: Record<string, number> = {};
         const byMarket: Record<string, number> = {};
 
-        // 1. Process Individual Assets
-        for (const asset of assets) {
+        // 0. Resolve Currencies for all assets
+        const resolvedAssets = await Promise.all(assets.map(async (asset) => {
+            if (asset.currency) return asset;
+            const dbAsset = await prisma.asset.findUnique({ where: { symbol: asset.symbol } });
+            return { ...asset, currency: dbAsset?.currency || (asset.assetType === 'CRYPTO' ? 'USD' : 'USD') };
+        }));
+
+        // Fetch FX rates for needed currencies (Bridged through USD if needed)
+        const uniqueCurrencies = [...new Set(resolvedAssets.map(a => a.currency).filter(c => c !== baseCurrency))];
+        const fxRatesMapToBase: Record<string, Map<string, number>> = {};
+
+        // Multi-currency bridge: From [CAD, BRL] to [USD] then [USD] to Base
+        const usdToBaseHistorical = baseCurrency === 'USD' ? null : await FXService.getHistoricalRates(baseCurrency, 365);
+
+        await Promise.all(uniqueCurrencies.map(async (curr) => {
+            if (curr && curr !== 'USD') {
+                fxRatesMapToBase[curr] = await FXService.getHistoricalRates(curr, 365);
+            }
+        }));
+
+        // 1. Process Individual Assets (Latest Snapshot)
+        for (const asset of resolvedAssets) {
             const histRaw = priceHistories[asset.symbol];
-            let currentPrice = asset.averageCost || 0;
-            let c: number[] = [];
-            let t: number[] = [];
+            let rawC: number[] = [];
+            let rawT: number[] = [];
 
             if (histRaw) {
                 if (Array.isArray(histRaw)) {
-                    // Legacy array of objects: [{c:100, t:123}, ...]
-                    c = histRaw.map((h: any) => typeof h === 'number' ? h : h.c);
-                    t = histRaw.map((h: any) => h.t || 0);
+                    rawC = histRaw.map((h: any) => typeof h === 'number' ? h : h.c);
+                    rawT = histRaw.map((h: any) => h.t || 0);
                 } else if (histRaw.s === 'ok' && Array.isArray(histRaw.c)) {
-                    // Finnhub format: { s: 'ok', c: [...], t: [...] }
-                    c = histRaw.c;
-                    t = histRaw.t;
+                    rawC = histRaw.c;
+                    rawT = histRaw.t;
                 }
             }
 
-            if (c.length > 0) {
-                currentPrice = c[c.length - 1];
-            }
+            const latestPriceLocal = rawC.length > 0 ? rawC[rawC.length - 1] : (asset.averageCost || 0);
 
-            const qty = asset.quantity || 1; // 1 for equal weight universes
-            const cost = asset.averageCost || currentPrice;
+            // Current rate normalization: Local -> Base
+            const rateLocalToBase = await FXService.getCrossRate(asset.currency || 'USD', baseCurrency);
 
-            const value = currentPrice * qty;
-            const cb = cost * qty;
-            const pnl = value - cb;
-            const pnlP = cb > 0 ? (pnl / cb) * 100 : 0;
+            const latestPriceBase = latestPriceLocal * rateLocalToBase;
+            const qty = asset.quantity || 1;
+            const costBase = (asset.averageCost || latestPriceLocal) * rateLocalToBase;
 
-            totalValue += value;
-            costBasis += cb;
+            const valueBase = latestPriceBase * qty;
+            const cbBase = costBase * qty;
+            const pnlBase = valueBase - cbBase;
+            const pnlP = cbBase > 0 ? (pnlBase / cbBase) * 100 : 0;
 
-            byAsset[asset.symbol] = value;
-            byType[asset.assetType] = (byType[asset.assetType] || 0) + value;
-            const mkt = asset.country || (asset.assetType === 'CRYPTO' ? 'Crypto' : 'US');
-            byMarket[mkt] = (byMarket[mkt] || 0) + value;
+            totalValueBase += valueBase;
+            costBasisBase += cbBase;
+
+            byAsset[asset.symbol] = valueBase;
+            byType[asset.assetType] = (byType[asset.assetType] || 0) + valueBase;
+            const mkt = asset.country || (asset.assetType === 'CRYPTO' ? 'Crypto' : (asset.symbol.endsWith('.SA') ? 'BR' : (asset.symbol.endsWith('.TO') ? 'CA' : 'US')));
+            byMarket[mkt] = (byMarket[mkt] || 0) + valueBase;
 
             if (!best || pnlP > best.pnlPercent) best = { symbol: asset.symbol, pnlPercent: pnlP };
             if (!worst || pnlP < worst.pnlPercent) worst = { symbol: asset.symbol, pnlPercent: pnlP };
 
             positions.push({
                 symbol: asset.symbol,
-                currentPrice,
-                currentValue: value,
-                costBasis: cb,
-                unrealizedPnL: pnl,
+                currentPrice: latestPriceLocal,
+                currentPriceBase: latestPriceBase,
+                currency: asset.currency,
+                currentValue: valueBase,
+                costBasis: cbBase,
+                unrealizedPnL: pnlBase,
                 pnlPercent: pnlP,
-                weight: 0 // Will compute below
+                weight: 0
             });
 
             // Breadth
-            if (c.length > 0) {
-                const sma20 = IndicatorService.computeSMA(c, 20);
-                const sma50 = IndicatorService.computeSMA(c, 50);
-                if (sma20 && currentPrice > sma20) sma20Count++;
-                if (sma50 && currentPrice > sma50) sma50Count++;
+            if (rawC.length > 0) {
+                const sma20 = IndicatorService.computeSMA(rawC, 20);
+                const sma50 = IndicatorService.computeSMA(rawC, 50);
+                if (sma20 && latestPriceLocal > sma20) sma20Count++;
+                if (sma50 && latestPriceLocal > sma50) sma50Count++;
                 if (sma20 && sma50 && sma20 > sma50) bullishCount++;
             }
         }
 
-        positions.forEach(p => p.weight = totalValue > 0 ? (p.currentValue / totalValue) * 100 : 0);
+        positions.forEach(p => p.weight = totalValueBase > 0 ? (p.currentValue / totalValueBase) * 100 : 0);
 
-        // 2. Aggregate Portfolio History & Risk
-        const historyMap = new Map<number, number>();
-        for (const asset of assets) {
+        // 2. Aggregate Portfolio History (Aligned & Normalized)
+        const assetSeries = resolvedAssets.map(asset => {
             const histRaw = priceHistories[asset.symbol];
-            let c: number[] = [];
-            let t: number[] = [];
+            const tsMap = new Map<number, number>();
+            if (!histRaw) return { symbol: asset.symbol, currency: asset.currency, tsMap, qty: asset.quantity || 1 };
 
-            if (histRaw) {
-                if (Array.isArray(histRaw)) {
-                    if (histRaw[0]?.c !== undefined && histRaw[0]?.t !== undefined) {
-                        c = histRaw.map((h: any) => h.c);
-                        t = histRaw.map((h: any) => h.t);
+            let c: number[] = [], t: number[] = [];
+            if (Array.isArray(histRaw)) {
+                c = histRaw.map(h => h.c); t = histRaw.map(h => h.t);
+            } else if (histRaw.s === 'ok') {
+                c = histRaw.c; t = histRaw.t;
+            }
+
+            for (let i = 0; i < t.length; i++) {
+                const dayTs = new Date(t[i] * 1000).setUTCHours(0, 0, 0, 0);
+                tsMap.set(dayTs, c[i]);
+            }
+            return { symbol: asset.symbol, currency: asset.currency, tsMap, qty: asset.quantity || 1 };
+        });
+
+        const allDates = new Set<number>();
+        assetSeries.forEach(s => s.tsMap.forEach((_, ts) => allDates.add(ts)));
+        const sortedDates = Array.from(allDates).sort((a, b) => a - b);
+
+        const alignedHistory: ReturnSeries[] = [];
+        const lastKnownPrices = new Map<string, number>();
+
+        for (const dateTs of sortedDates) {
+            let dailyTotalBase = 0;
+            const dateStr = new Date(dateTs).toISOString().split('T')[0];
+
+            for (const asset of assetSeries) {
+                let price = asset.tsMap.get(dateTs);
+                if (price === undefined) {
+                    price = lastKnownPrices.get(asset.symbol);
+                } else {
+                    lastKnownPrices.set(asset.symbol, price);
+                }
+
+                if (price !== undefined) {
+                    // Local -> USD -> Base
+                    let rateAssetToUSD = 1.0;
+                    if (asset.currency !== 'USD') {
+                        rateAssetToUSD = fxRatesMapToBase[asset.currency || 'USD']?.get(dateStr)
+                            || fxRatesMapToBase[asset.currency || 'USD']?.values().next().value
+                            || 1.0;
                     }
-                } else if (histRaw.s === 'ok' && Array.isArray(histRaw.c)) {
-                    c = histRaw.c;
-                    t = histRaw.t;
+
+                    let rateUSDToBase = 1.0;
+                    if (baseCurrency !== 'USD' && usdToBaseHistorical) {
+                        const usdRateFromBase = usdToBaseHistorical.get(dateStr) || usdToBaseHistorical.values().next().value || 1.0;
+                        rateUSDToBase = 1.0 / usdRateFromBase;
+                    }
+
+                    dailyTotalBase += price * asset.qty * rateAssetToUSD * rateUSDToBase;
                 }
             }
-
-            if (t.length === 0 || c.length === 0 || t.length !== c.length) continue;
-
-            const qty = asset.quantity || 1;
-            for (let i = 0; i < c.length; i++) {
-                const dayTs = new Date(t[i] * 1000).setUTCHours(0, 0, 0, 0);
-                historyMap.set(dayTs, (historyMap.get(dayTs) || 0) + (c[i] * qty));
-            }
+            alignedHistory.push({ timestamp: dateTs, value: dailyTotalBase });
         }
 
-        const sortedHistory = Array.from(historyMap.entries())
-            .map(([timestamp, value]) => ({ timestamp, value }))
-            .sort((a, b) => a.timestamp - b.timestamp);
-
-        const groupValues = sortedHistory.map(h => h.value);
+        const groupValues = alignedHistory.map(h => h.value);
         let vol = 0, sharpe = 0, sortino = 0, maxDrawdown = 0;
 
-        if (groupValues.length > 20) {
+        if (groupValues.length > 5) {
             const risk = IndicatorService.computeVolatilityAndRiskMetrics(groupValues, 20);
             if (risk) {
                 vol = risk.vol; sharpe = risk.sharpe; sortino = risk.sortino;
@@ -194,7 +246,6 @@ export class GroupAnalysisEngine {
             maxDrawdown = IndicatorService.computeMaxDrawdown(groupValues, 252) || 0;
         }
 
-        // Returns
         const getRetForDays = (days: number) => {
             if (groupValues.length <= days) return 0;
             const cur = groupValues[groupValues.length - 1];
@@ -203,14 +254,14 @@ export class GroupAnalysisEngine {
         };
 
         const topWeights = positions.sort((a, b) => b.weight - a.weight).slice(0, 5).reduce((a, b) => a + b.weight, 0);
-        const divScore = Math.max(0, 100 - topWeights); // Simple heuristic
+        const divScore = Math.max(0, 100 - topWeights);
 
         return {
             summary: {
-                totalValue,
-                costBasis,
-                unrealizedPnL: totalValue - costBasis,
-                pnlPercent: costBasis > 0 ? ((totalValue - costBasis) / costBasis) * 100 : 0,
+                totalValue: totalValueBase,
+                costBasis: costBasisBase,
+                unrealizedPnL: totalValueBase - costBasisBase,
+                pnlPercent: costBasisBase > 0 ? ((totalValueBase - costBasisBase) / costBasisBase) * 100 : 0,
                 bestPerformer: best,
                 worstPerformer: worst,
                 dailyReturn: getRetForDays(1),
@@ -223,7 +274,7 @@ export class GroupAnalysisEngine {
                 byMarket: Object.entries(byMarket).map(([name, value]) => ({ name, value }))
             },
             performance: {
-                history: sortedHistory,
+                history: alignedHistory,
                 returns: {
                     '1D': getRetForDays(1),
                     '1W': getRetForDays(7),
@@ -235,11 +286,11 @@ export class GroupAnalysisEngine {
             },
             risk: {
                 volatility: vol,
-                maxDrawdown: maxDrawdown * 100, // convert to %
+                maxDrawdown: maxDrawdown * 100,
                 sharpeRatio: sharpe,
                 sortinoRatio: sortino,
                 diversificationScore: divScore,
-                correlationMatrix: {} // Placeholder to save payload space
+                correlationMatrix: {}
             },
             breadth: {
                 bullishPercent: assets.length > 0 ? (bullishCount / assets.length) * 100 : 0,

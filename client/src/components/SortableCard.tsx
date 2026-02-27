@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../utils';
-import { Star, GripVertical } from 'lucide-react';
+import { Star, GripVertical, Database } from 'lucide-react';
 
 export function SortableCard({ item, onClick, onUntrack }: { item: any; onClick: () => void; onUntrack: (symbol: string) => void }) {
     const {
@@ -40,7 +40,10 @@ export function SortableCard({ item, onClick, onUntrack }: { item: any; onClick:
                     >
                         <GripVertical size={18} />
                     </div>
-                    <h1 className="text-2xl font-bold">{item.symbol}</h1>
+                    <div className="flex flex-col">
+                        <h1 className="text-2xl font-bold text-white">{item.symbol}</h1>
+                        <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-tight">{item.assetType}</span>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     {item.prediction?.[0] && (
@@ -63,20 +66,40 @@ export function SortableCard({ item, onClick, onUntrack }: { item: any; onClick:
 
             {item.indicators ? (() => {
                 const ind = JSON.parse(item.indicators.indicatorsJson);
+                const currency = item.asset?.currency || 'USD';
+                const isNonUSD = currency !== 'USD';
+
                 return (
                     <div className="space-y-4">
-                        <div>
-                            <div className="text-sm text-neutral-500 mb-0.5">Last Price</div>
-                            <div className="text-xl font-mono">${ind.lastPrice.toFixed(2)}</div>
+                        <div className="flex flex-col gap-1">
+                            <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Market Price</div>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-mono font-bold text-white">
+                                    {ind.lastPrice.toLocaleString(undefined, { style: 'currency', currency: currency })}
+                                </span>
+                            </div>
+                            {isNonUSD && item.quote?.priceUSD && (
+                                <div className="text-xs text-indigo-400/80 font-medium">
+                                    ≈ ${item.quote.priceUSD.toFixed(2)} <span className="text-[9px] opacity-60">USD</span>
+                                </div>
+                            )}
                         </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-neutral-400">RSI: {ind.rsi14 ? ind.rsi14.toFixed(1) : '-'}</span>
-                            <span className="text-neutral-400">Vol: {ind.vol20 ? (ind.vol20 * 100).toFixed(1) + '%' : '-'}</span>
+                        <div className="flex justify-between items-center bg-black/40 rounded-lg px-3 py-2 border border-neutral-800/50">
+                            <div className="flex flex-col">
+                                <span className="text-[9px] text-neutral-500 font-bold uppercase">RSI (14)</span>
+                                <span className="text-sm font-bold text-neutral-300">{ind.rsi14 ? ind.rsi14.toFixed(1) : '-'}</span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] text-neutral-500 font-bold uppercase">Vol (20D)</span>
+                                <span className="text-sm font-bold text-neutral-300">{ind.vol20 ? (ind.vol20 * 100).toFixed(1) + '%' : '-'}</span>
+                            </div>
                         </div>
                     </div>
                 );
             })() : (
-                <div className="text-sm text-neutral-500 mt-4">Awaiting chron job...</div>
+                <div className="text-sm text-neutral-500 mt-4 flex items-center gap-2">
+                    <Database size={14} className="animate-pulse" /> Awaiting aggregation...
+                </div>
             )}
         </div>
     );

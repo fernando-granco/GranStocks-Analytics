@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useState, useCallback } from 'react';
+import { usePortfolios } from '../context/PortfolioContext';
+import { Trash2 } from 'lucide-react';
 
 export interface PortfolioPosition {
     id: string;
@@ -14,12 +15,20 @@ export interface PortfolioPosition {
     pnlPercent: number;
     fees?: number;
     isInvalid?: boolean;
+    currency: string;
+    currentPriceBase: number;
+    currentValueBase: number;
+    unrealizedPnLBase: number;
 }
 
-export function PortfolioTracker() {
+interface PortfolioTrackerProps {
+    onPositionsUpdated?: () => void;
+}
+
+export function PortfolioTracker({ onPositionsUpdated }: PortfolioTrackerProps) {
+    const { selectedPortfolio } = usePortfolios();
     const [positions, setPositions] = useState<PortfolioPosition[]>([]);
     const [loading, setLoading] = useState(true);
-    const { t } = useTranslation();
 
     const [formSymbol, setFormSymbol] = useState('');
     const [formQty, setFormQty] = useState('');
@@ -28,11 +37,14 @@ export function PortfolioTracker() {
     const [formFees, setFormFees] = useState('');
     const [formAssetType, setFormAssetType] = useState<'STOCK' | 'CRYPTO'>('STOCK');
     const [showAddForm, setShowAddForm] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const fetchPositions = async () => {
+    const fetchPositions = useCallback(async () => {
+        if (!selectedPortfolio) return;
         setLoading(true);
         try {
-            const res = await fetch('/api/portfolio');
+            const res = await fetch(`/api/portfolio?portfolioId=${selectedPortfolio.id}`);
+            if (res.status === 401) return;
             if (res.ok) {
                 const data = await res.json();
                 setPositions(data);
@@ -42,22 +54,22 @@ export function PortfolioTracker() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [selectedPortfolio]);
 
     useEffect(() => {
         fetchPositions();
-    }, []);
-
-    const [errorMsg, setErrorMsg] = useState('');
+    }, [fetchPositions]);
 
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!selectedPortfolio) return;
         setErrorMsg('');
         try {
             const res = await fetch('/api/portfolio', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    portfolioId: selectedPortfolio.id,
                     symbol: formSymbol.toUpperCase(),
                     assetType: formAssetType,
                     quantity: parseFloat(formQty),
@@ -73,6 +85,7 @@ export function PortfolioTracker() {
                 setFormDate(new Date().toISOString().split('T')[0]);
                 setFormFees('');
                 fetchPositions();
+                if (onPositionsUpdated) onPositionsUpdated();
             } else {
                 const data = await res.json();
                 setErrorMsg(data.error || 'Failed to add position');
@@ -84,153 +97,172 @@ export function PortfolioTracker() {
     };
 
     const handleDelete = async (id: string) => {
+        if (!window.confirm('Delete this position?')) return;
         try {
-            const res = await fetch(`/api/portfolio/${id}`, { method: 'DELETE' });
-            if (res.ok) fetchPositions();
+            const res = await fetch(`/api/portfolio/position/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                fetchPositions();
+                if (onPositionsUpdated) onPositionsUpdated();
+            }
         } catch (e) {
             console.error(e);
         }
     };
 
-    const totalValue = positions.reduce((acc, p) => acc + p.currentValue, 0);
-    const totalPnL = positions.reduce((acc, p) => acc + p.unrealizedPnL, 0);
+    const baseCurrency = selectedPortfolio?.baseCurrency || 'USD';
 
     return (
-        <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="bg-neutral-900/40 p-6">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
-                        {t('dashboard.portfolio.title')}
-                    </h2>
-                    <p className="text-sm text-muted-foreground mt-1">Real-time mock position tracking</p>
+                    <h3 className="text-lg font-bold text-white">Positions</h3>
+                    <p className="text-xs text-neutral-500 uppercase tracking-wider font-bold mt-1">Managed in {baseCurrency}</p>
                 </div>
-                <div className="text-right">
-                    <p className="text-sm text-white/50">{t('dashboard.portfolio.all_time')}</p>
-                    <p className="text-2xl font-bold font-mono text-white">${totalValue.toFixed(2)}</p>
-                    <p className={`text-sm font-semibold mt-1 ${totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {totalPnL >= 0 ? '+' : ''}{totalPnL.toFixed(2)} P&L
-                    </p>
-                </div>
-            </div>
-
-            <div className="mb-6 border-b border-border pb-4 flex justify-between items-center">
-                <p className="text-sm text-muted-foreground font-medium">Add manual positions to simulate long-term tracking capability.</p>
                 <button
                     onClick={() => setShowAddForm(!showAddForm)}
-                    className="text-sm font-semibold bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors border border-white/10"
+                    className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold rounded-lg transition-all"
                 >
-                    {showAddForm ? t('dashboard.portfolio.cancel') : `+ ${t('dashboard.portfolio.add')}`}
+                    {showAddForm ? 'Cancel' : '+ New Position'}
                 </button>
             </div>
 
             {showAddForm && (
-                <div className="mb-8 p-4 bg-black/20 rounded-xl border border-white/5">
-                    <form onSubmit={handleAdd} className="flex flex-wrap md:flex-nowrap gap-3 items-center">
-                        <input
-                            type="text"
-                            placeholder="Symbol (AAPL/BTC)"
-                            className="flex-1 min-w-[120px] bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 uppercase"
-                            value={formSymbol}
-                            onChange={e => setFormSymbol(e.target.value.toUpperCase())}
-                            required
-                        />
-                        <select
-                            value={formAssetType}
-                            onChange={e => setFormAssetType(e.target.value as 'STOCK' | 'CRYPTO')}
-                            className="w-24 bg-black border border-neutral-800 rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                        >
-                            <option value="STOCK">Stock</option>
-                            <option value="CRYPTO">Crypto</option>
-                        </select>
-                        <input
-                            type="number"
-                            step="any"
-                            placeholder="Qty"
-                            min="0.00000001"
-                            className="w-24 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                            value={formQty}
-                            onChange={e => setFormQty(e.target.value)}
-                            required
-                        />
-                        <input
-                            type="number"
-                            step="any"
-                            placeholder="Avg Cost $"
-                            min="0"
-                            className="w-28 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                            value={formPrice}
-                            onChange={e => setFormPrice(e.target.value)}
-                            required
-                        />
-                        <input
-                            type="date"
-                            className="w-36 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-neutral-300 focus:outline-none focus:border-indigo-500"
-                            value={formDate}
-                            onChange={e => setFormDate(e.target.value)}
-                            required
-                        />
-                        <input
-                            type="number"
-                            step="any"
-                            placeholder="Fees $"
-                            min="0"
-                            className="w-24 bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                            value={formFees}
-                            onChange={e => setFormFees(e.target.value)}
-                        />
-                        <button
-                            type="submit"
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition-colors whitespace-nowrap shadow-sm"
-                        >
-                            {t('dashboard.portfolio.submit')}
-                        </button>
+                <div className="mb-8 p-6 bg-black/40 rounded-xl border border-neutral-800 animate-in fade-in zoom-in-95 duration-200">
+                    <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-neutral-500 uppercase">Symbol</label>
+                            <input
+                                type="text"
+                                placeholder="AAPL / PETR4.SA"
+                                className="bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 uppercase"
+                                value={formSymbol}
+                                onChange={e => setFormSymbol(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-neutral-500 uppercase">Type</label>
+                            <select
+                                value={formAssetType}
+                                onChange={e => setFormAssetType(e.target.value as 'STOCK' | 'CRYPTO')}
+                                className="bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                            >
+                                <option value="STOCK">Stock</option>
+                                <option value="CRYPTO">Crypto</option>
+                            </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-neutral-500 uppercase">Quantity</label>
+                            <input
+                                type="number"
+                                step="any"
+                                className="bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                value={formQty}
+                                onChange={e => setFormQty(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-neutral-500 uppercase">Avg Cost (Native)</label>
+                            <input
+                                type="number"
+                                step="any"
+                                className="bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                value={formPrice}
+                                onChange={e => setFormPrice(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-neutral-500 uppercase">Date</label>
+                            <input
+                                type="date"
+                                className="bg-black border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                                value={formDate}
+                                onChange={e => setFormDate(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-neutral-500 uppercase">&nbsp;</label>
+                            <button
+                                type="submit"
+                                className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 rounded-lg text-sm transition-all"
+                            >
+                                Add Position
+                            </button>
+                        </div>
                     </form>
-                    {errorMsg && <p className="mt-4 text-sm text-red-400 font-medium">{errorMsg}</p>}
+                    {errorMsg && <p className="mt-4 text-xs text-rose-400 font-bold">{errorMsg}</p>}
                 </div>
             )}
+
             {loading ? (
                 <div className="animate-pulse space-y-4">
                     <div className="h-10 bg-white/5 rounded w-full"></div>
                     <div className="h-10 bg-white/5 rounded w-full"></div>
                 </div>
             ) : positions.length === 0 ? (
-                <div className="text-center py-8 text-white/40 text-sm">No positions tracked. Add one above.</div>
+                <div className="text-center py-12 border border-dashed border-neutral-800 rounded-xl bg-black/10">
+                    <p className="text-neutral-500 text-sm">No positions found in this portfolio.</p>
+                </div>
             ) : (
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left align-middle text-muted-foreground">
-                        <thead className="text-xs uppercase bg-white/5 text-white/70">
+                    <table className="w-full text-sm text-left align-middle">
+                        <thead className="text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-800">
                             <tr>
-                                <th className="px-4 py-3 font-medium rounded-tl-lg">{t('dashboard.portfolio.headers.symbol')}</th>
-                                <th className="px-4 py-3 font-medium text-right">{t('dashboard.portfolio.qty')}</th>
-                                <th className="px-4 py-3 font-medium text-right">{t('dashboard.portfolio.headers.entry')}</th>
-                                <th className="px-4 py-3 font-medium text-right">{t('dashboard.portfolio.headers.price')}</th>
-                                <th className="px-4 py-3 font-medium text-right">{t('dashboard.portfolio.headers.value')}</th>
-                                <th className="px-4 py-3 font-medium text-right">{t('dashboard.portfolio.headers.pnl')}</th>
-                                <th className="px-4 py-3 font-medium text-center rounded-tr-lg">{t('dashboard.portfolio.headers.actions')}</th>
+                                <th className="px-4 py-3">Asset</th>
+                                <th className="px-4 py-3 text-right">Quantity</th>
+                                <th className="px-4 py-3 text-right">Entry Price</th>
+                                <th className="px-4 py-3 text-right">Current Price</th>
+                                <th className="px-4 py-3 text-right">Market Value ({baseCurrency})</th>
+                                <th className="px-4 py-3 text-right">P&L ({baseCurrency})</th>
+                                <th className="px-4 py-3 text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/10">
+                        <tbody className="divide-y divide-neutral-800/50">
                             {positions.map(p => {
                                 const isProfit = p.unrealizedPnL >= 0;
+                                const isNativeDiff = p.currency !== baseCurrency;
                                 return (
-                                    <tr key={p.id} className={`hover:bg-white/5 transition-colors group ${p.isInvalid ? 'opacity-70' : ''}`}>
-                                        <td className="px-4 py-4 font-bold text-white tracking-wide flex items-center gap-2">
-                                            {p.symbol}
-                                            {p.isInvalid && <span className="text-[10px] text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">INVALID</span>}
+                                    <tr key={p.id} className="hover:bg-white/5 transition-colors group">
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-white flex items-center gap-2">
+                                                    {p.symbol}
+                                                    {isNativeDiff && <span className="text-[9px] bg-neutral-800 text-neutral-400 px-1 py-0.5 rounded uppercase font-black">{p.currency}</span>}
+                                                </span>
+                                            </div>
                                         </td>
-                                        <td className="px-4 py-4 text-right font-mono">{p.quantity}</td>
-                                        <td className="px-4 py-4 text-right font-mono">${p.averageCost.toFixed(2)}</td>
-                                        <td className="px-4 py-4 text-right font-mono text-white">${p.currentPrice.toFixed(2)}</td>
-                                        <td className="px-4 py-4 text-right font-mono text-white">${p.currentValue.toFixed(2)}</td>
-                                        <td className={`px-4 py-4 text-right font-mono font-bold ${p.isInvalid ? 'text-neutral-500' : (isProfit ? 'text-green-400' : 'text-red-400')}`}>
-                                            {p.isInvalid ? 'ERR' : `${isProfit ? '+' : ''}${p.unrealizedPnL.toFixed(2)} (${isProfit ? '+' : ''}${p.pnlPercent.toFixed(2)}%)`}
+                                        <td className="px-4 py-4 text-right font-mono text-neutral-300">{p.quantity.toLocaleString()}</td>
+                                        <td className="px-4 py-4 text-right font-mono text-neutral-300">
+                                            {p.averageCost.toLocaleString(undefined, { style: 'currency', currency: p.currency })}
+                                        </td>
+                                        <td className="px-4 py-4 text-right text-white">
+                                            <div className="flex flex-col items-end">
+                                                <span className="font-mono font-bold">{p.currentPrice.toLocaleString(undefined, { style: 'currency', currency: p.currency })}</span>
+                                                {isNativeDiff && (
+                                                    <span className="text-[10px] text-neutral-500 font-mono">
+                                                        ≈ {p.currentPriceBase.toLocaleString(undefined, { style: 'currency', currency: baseCurrency })}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4 text-right font-mono font-bold text-white">
+                                            {p.currentValue.toLocaleString(undefined, { style: 'currency', currency: baseCurrency })}
+                                        </td>
+                                        <td className={`px-4 py-4 text-right font-mono font-bold ${isProfit ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            <div className="flex flex-col items-end">
+                                                <span>{isProfit ? '+' : ''}{p.unrealizedPnL.toLocaleString(undefined, { style: 'currency', currency: baseCurrency })}</span>
+                                                <span className="text-[10px] opacity-80">{isProfit ? '+' : ''}{p.pnlPercent.toFixed(2)}%</span>
+                                            </div>
                                         </td>
                                         <td className="px-4 py-4 text-center">
                                             <button
                                                 onClick={() => handleDelete(p.id)}
-                                                className="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity text-xs uppercase font-bold tracking-wider"
+                                                className="p-2 text-neutral-600 hover:text-rose-400 hover:bg-rose-400/10 rounded-lg transition-all"
                                             >
-                                                Drop
+                                                <Trash2 className="h-4 w-4" />
                                             </button>
                                         </td>
                                     </tr>

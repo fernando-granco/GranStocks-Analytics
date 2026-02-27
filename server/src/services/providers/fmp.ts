@@ -1,12 +1,13 @@
 const FMP_API_KEY = process.env.FMP_API_KEY || '';
-const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
+const FMP_BASE_URL = 'https://financialmodelingprep.com/stable';
 
 export class FMPProvider {
     static async getQuote(symbol: string) {
         if (!FMP_API_KEY) throw new Error('FMP_API_KEY not configured');
 
         try {
-            const res = await fetch(`${FMP_BASE_URL}/quote/${symbol}?apikey=${FMP_API_KEY}`);
+            // Stable endpoint for 2026
+            const res = await fetch(`${FMP_BASE_URL}/quote?symbol=${symbol}&apikey=${FMP_API_KEY}`);
             if (!res.ok) throw new Error(`FMP Quote Error: ${res.status}`);
 
             const data = await res.json();
@@ -21,7 +22,7 @@ export class FMPProvider {
                 assetType: 'STOCK',
                 price: quote.price,
                 changeAbs: quote.change || 0,
-                changePct: quote.changesPercentage || 0,
+                changePct: quote.changePercentage || 0, // In stable it is changePercentage
                 ts: quote.timestamp * 1000 || Date.now(),
                 source: 'FMP',
                 isStale: false
@@ -36,15 +37,17 @@ export class FMPProvider {
         if (!FMP_API_KEY) throw new Error('FMP_API_KEY not configured');
 
         try {
-            const res = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?apikey=${FMP_API_KEY}`);
+            // Stable historical endpoint for 2026
+            const res = await fetch(`${FMP_BASE_URL}/historical-price-eod/full?symbol=${symbol}&apikey=${FMP_API_KEY}`);
             if (!res.ok) throw new Error(`FMP Candle Error: ${res.status}`);
 
             const data = await res.json();
-            if (!data.historical || !Array.isArray(data.historical)) {
-                throw new Error('Invalid candle data from FMP');
+            if (!Array.isArray(data)) {
+                throw new Error('Invalid candle data from FMP (expected array)');
             }
 
-            const history = data.historical.reverse(); // FMP returns newest first, we want oldest first
+            // FMP stable historical returns newest first
+            const history = [...data].reverse();
 
             return {
                 s: 'ok',

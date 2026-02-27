@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-rout
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import { PreferencesProvider } from './context/PreferencesContext';
+import { PortfolioProvider } from './context/PortfolioContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
@@ -42,34 +43,36 @@ export default function App() {
     return (
         <QueryClientProvider client={queryClient}>
             <AuthProvider>
-                <PreferencesProvider>
-                    <BrowserRouter>
-                        <Routes>
-                            <Route path="/" element={<Landing />} />
-                            <Route path="/login" element={<Login />} />
-                            <Route path="/register" element={<Register />} />
+                <PortfolioProvider>
+                    <PreferencesProvider>
+                        <BrowserRouter>
+                            <Routes>
+                                <Route path="/" element={<Landing />} />
+                                <Route path="/login" element={<Login />} />
+                                <Route path="/register" element={<Register />} />
 
-                            <Route path="/demo" element={<DemoDashboard />} />
-                            <Route path="/demo/screener" element={<DemoScreener />} />
-                            <Route path="/demo/asset/:assetType/:symbol" element={<DemoAssetDetail />} />
+                                <Route path="/demo" element={<DemoDashboard />} />
+                                <Route path="/demo/screener" element={<DemoScreener />} />
+                                <Route path="/demo/asset/:assetType/:symbol" element={<DemoAssetDetail />} />
 
-                            <Route path="/app" element={<ProtectedRoute />}>
-                                <Route element={<Layout />}>
-                                    <Route index element={<DashboardWrapper />} />
-                                    <Route path="screener" element={<Screener />} />
-                                    <Route path="settings" element={<Settings />} />
-                                    <Route path="admin" element={<AdminDashboard />} />
-                                    <Route path="watchlists" element={<Watchlists />} />
-                                    <Route path="portfolio" element={<Portfolio />} />
-                                    <Route path="portfolio-analysis" element={<PortfolioAnalysis />} />
-                                    <Route path="alerts" element={<Alerts />} />
-                                    <Route path="universe/:id" element={<UniverseDetail />} />
-                                    <Route path="asset/:assetType/:symbol" element={<AssetDetailWrapper />} />
+                                <Route path="/app" element={<ProtectedRoute />}>
+                                    <Route element={<Layout />}>
+                                        <Route index element={<DashboardWrapper />} />
+                                        <Route path="screener" element={<Screener />} />
+                                        <Route path="settings" element={<Settings />} />
+                                        <Route path="admin" element={<AdminDashboard />} />
+                                        <Route path="watchlists" element={<Watchlists />} />
+                                        <Route path="portfolio" element={<Portfolio />} />
+                                        <Route path="portfolio-analysis" element={<PortfolioAnalysis />} />
+                                        <Route path="alerts" element={<Alerts />} />
+                                        <Route path="universe/:id" element={<UniverseDetail />} />
+                                        <Route path="asset/:assetType/:symbol" element={<AssetDetailWrapper />} />
+                                    </Route>
                                 </Route>
-                            </Route>
-                        </Routes>
-                    </BrowserRouter>
-                </PreferencesProvider>
+                            </Routes>
+                        </BrowserRouter>
+                    </PreferencesProvider>
+                </PortfolioProvider>
             </AuthProvider>
         </QueryClientProvider>
     );

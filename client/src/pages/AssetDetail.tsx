@@ -192,11 +192,30 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                 <span className={cn("text-sm px-2 py-0.5 rounded-full font-semibold", assetType === 'CRYPTO' ? 'bg-orange-500/20 text-orange-400' : 'bg-blue-500/20 text-blue-400')}>{assetType}</span>
                             </h1>
                             <div className="flex items-center gap-4 mt-2">
-                                <span className="text-2xl font-mono">${summary.quote?.price != null ? summary.quote.price.toFixed(2) : '---'}</span>
-                                <span className={cn("text-lg font-medium", (summary.quote?.changePct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-                                    {(summary.quote?.changePct || 0) >= 0 ? '+' : ''}{summary.quote?.changePct != null ? summary.quote.changePct.toFixed(2) : '0.00'}%
-                                </span>
-                                <span className="text-xs text-neutral-500 flex items-center gap-1"><Database size={12} /> {summary.quote?.source || 'N/A'}</span>
+                                <div className="flex flex-col">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-3xl font-mono font-bold text-white">
+                                            {summary.quote?.price != null ? summary.quote.price.toFixed(2) : '---'}
+                                        </span>
+                                        {summary.asset?.currency && (
+                                            <span className="text-xs font-bold text-neutral-500 uppercase">{summary.asset.currency}</span>
+                                        )}
+                                    </div>
+                                    {summary.asset?.currency && summary.asset.currency !== 'USD' && summary.quote?.priceUSD != null && (
+                                        <div className="flex items-center gap-2 mt-0.5 text-indigo-400 font-medium">
+                                            <span className="text-sm">≈ ${summary.quote.priceUSD.toFixed(2)}</span>
+                                            <span className="text-[10px] uppercase opacity-60">USD</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="ml-4">
+                                    <span className={cn("text-xl font-bold", (summary.quote?.changePct || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                                        {(summary.quote?.changePct || 0) >= 0 ? '+' : ''}{summary.quote?.changePct != null ? summary.quote.changePct.toFixed(2) : '0.00'}%
+                                    </span>
+                                    <div className="text-[10px] text-neutral-600 flex items-center gap-1 uppercase font-bold tracking-tighter">
+                                        <Database size={10} /> Data: {summary.quote?.source || 'N/A'}
+                                    </div>
+                                </div>
                             </div>
                             <div className="mt-3 flex items-center gap-2">
                                 <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded text-xs font-medium">

@@ -111,11 +111,25 @@ export default function Screener() {
             if (livePrices[c.symbol] !== undefined) return;
 
             const assetType = c.universeType === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
+            const isForeign = c.universeName === 'TSX60' || c.universeName === 'IBOV';
+
             // Fetch price for each candidate
             fetch(`/api/data/quote?symbol=${c.symbol}&assetType=${assetType}`)
                 .then(res => res.json())
                 .then(quote => {
                     setLivePrices(prev => ({ ...prev, [c.symbol]: quote.price }));
+
+                    if (isForeign) {
+                        // Fetch USD equivalent
+                        const currency = c.universeName === 'TSX60' ? 'CAD' : 'BRL';
+                        fetch(`/api/data/quote?symbol=${currency}USD=X&assetType=STOCK`)
+                            .then(r => r.json())
+                            .then(fx => {
+                                if (fx?.price) {
+                                    setLivePrices(prev => ({ ...prev, [`${c.symbol}_USD`]: quote.price * fx.price }));
+                                }
+                            }).catch(() => { });
+                    }
                 })
                 .catch(() => {
                     setLivePrices(prev => ({ ...prev, [c.symbol]: null }));
@@ -230,7 +244,18 @@ export default function Screener() {
                                         <div className="flex items-center gap-2 pl-6">
                                             <span className="font-mono text-xl text-neutral-200 font-medium">
                                                 {livePrices[c.symbol] !== undefined ? (
-                                                    livePrices[c.symbol] !== null ? `$${livePrices[c.symbol]!.toFixed(2)} ${currencyBadge}` : 'N/A'
+                                                    livePrices[c.symbol] !== null ? (
+                                                        <span>
+                                                            {currencyBadge !== 'USD' && <span className="text-xs text-neutral-500 mr-1">{currencyBadge}</span>}
+                                                            {livePrices[c.symbol]!.toFixed(2)}
+                                                            {currencyBadge !== 'USD' && (
+                                                                <span className="text-sm text-indigo-400/80 ml-2" title="USD Equivalent">
+                                                                    ≈ ${typeof livePrices[`${c.symbol}_USD`] === 'number' ? livePrices[`${c.symbol}_USD`]!.toFixed(2) : '...'}
+                                                                </span>
+                                                            )}
+                                                            {currencyBadge === 'USD' && <span className="text-xs text-neutral-500 ml-1">USD</span>}
+                                                        </span>
+                                                    ) : 'N/A'
                                                 ) : (
                                                     <span className="animate-pulse opacity-50">...</span>
                                                 )}
@@ -243,7 +268,12 @@ export default function Screener() {
                                                 </span>
                                             )}
                                         </div>
-                                        <span className="text-xs bg-neutral-800 text-neutral-400 px-2 rounded flex items-center">{marketBadge}</span>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded font-bold">{marketBadge}</span>
+                                            {currencyBadge !== 'USD' && (
+                                                <span className="text-[9px] text-indigo-400/60 font-mono uppercase">Normalized to USD for Rankings</span>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <div className="text-sm font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">

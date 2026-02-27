@@ -52,3 +52,6 @@ coverage/
 
 # Documentation
 INSTALLATION.md
+HARDENING_NOTES.md
+DEV_NOTES.md
+CHANGELOG_DEV.md

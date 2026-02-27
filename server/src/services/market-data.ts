@@ -1,7 +1,9 @@
-import { AlphaVantageProvider } from './providers/alphavantage';
+import { PrixeProvider } from './providers/prixe';
 import { BinanceProvider } from './providers/binance';
 import { FinnhubService } from './finnhub';
 import { FinnhubProvider } from './providers/finnhub';
+import { BrapiProvider } from './providers/brapi';
+import { FMPProvider } from './providers/fmp';
 import { prisma } from './cache';
 import { toDateString } from '../utils/date-helpers';
 
@@ -16,8 +18,27 @@ export class MarketData {
                 liveQuote = await BinanceProvider.getQuote(symbol);
             } else {
                 try {
-                    liveQuote = await AlphaVantageProvider.getQuote(symbol);
-                } catch (errAV) {
+                    // Pre-empt Prixe for Brazilian stocks
+                    if (symbol.endsWith('.SA')) {
+                        try {
+                            liveQuote = await BrapiProvider.getQuote(symbol);
+                        } catch (errBrapi) {
+                            console.warn(`[MarketData] Brapi failed for ${symbol}, falling back to Prixe...`);
+                            liveQuote = await PrixeProvider.getQuote(symbol);
+                        }
+                    } else if (symbol.endsWith('.TO')) {
+                        try {
+                            liveQuote = await FMPProvider.getQuote(symbol);
+                        } catch (errFMP) {
+                            console.warn(`[MarketData] FMP failed for ${symbol}, falling back to Prixe...`);
+                            liveQuote = await PrixeProvider.getQuote(symbol);
+                        }
+                    } else {
+                        // Primary: Prixe
+                        liveQuote = await PrixeProvider.getQuote(symbol);
+                    }
+                } catch (errPrixe) {
+                    console.warn(`[MarketData] Primary API failed for ${symbol}, falling back to Finnhub...`);
                     let fhQuote;
                     try {
                         fhQuote = await FinnhubService.getQuote(symbol);
@@ -25,8 +46,8 @@ export class MarketData {
                         fhQuote = null;
                     }
 
-                    if (!fhQuote || fhQuote.d === null) {
-                        // Fallback to Yahoo Finance for international stocks (e.g. .SA)
+                    if (!fhQuote || fhQuote.d === null || fhQuote.c === 0) {
+                        // Fallback to Yahoo Finance for international stocks
                         const yfQuoteStr = await FinnhubService.getYahooQuote(symbol);
                         if (!yfQuoteStr) throw new Error('All providers failed');
                         liveQuote = yfQuoteStr;
@@ -156,35 +177,33 @@ export class MarketData {
             // STOCK
             const isIntraday = ['1d', '1w'].includes(rangeStr);
             try {
-                const fullData = await AlphaVantageProvider.getCandles(symbol, isIntraday);
-                if (rangeStr === 'all') return fullData;
+                // Primary: Brapi for BR, Prixe for others
+                const toDate = toDateString();
+                const fromDateObj = new Date();
+                const mapDays: any = { '1d': 2, '1w': 7, '1m': 30, '3m': 90, '6m': 180, '1y': 365, '2y': 730, '3y': 1095, '5y': 1825, 'all': 3650 };
+                fromDateObj.setDate(fromDateObj.getDate() - (mapDays[rangeStr] || 180));
+                const fromDate = toDateString(fromDateObj);
+                const interval = isIntraday ? '1h' : '1d';
 
-                const toLimit = Math.floor(Date.now() / 1000);
-                let fromLimit = 0;
-                if (rangeStr === '1m') fromLimit = toLimit - (30 * 24 * 60 * 60);
-                else if (rangeStr === '3m') fromLimit = toLimit - (90 * 24 * 60 * 60);
-                else if (rangeStr === '6m') fromLimit = toLimit - (180 * 24 * 60 * 60);
-                else if (rangeStr === '1y') fromLimit = toLimit - (365 * 24 * 60 * 60);
-                else if (rangeStr === '2y') fromLimit = toLimit - (730 * 24 * 60 * 60);
-                else if (rangeStr === '3y') fromLimit = toLimit - (1095 * 24 * 60 * 60);
-                else if (rangeStr === '5y') fromLimit = toLimit - (1825 * 24 * 60 * 60);
-                else fromLimit = toLimit - (180 * 24 * 60 * 60); // Default 6m
-
-                // Slice the data arrays
-                const slicedData = { ...fullData, t: [], o: [], h: [], l: [], c: [], v: [] };
-                for (let i = 0; i < fullData.t.length; i++) {
-                    if (fullData.t[i] >= fromLimit) {
-                        slicedData.t.push(fullData.t[i]);
-                        slicedData.o.push(fullData.o[i]);
-                        slicedData.h.push(fullData.h[i]);
-                        slicedData.l.push(fullData.l[i]);
-                        slicedData.c.push(fullData.c[i]);
-                        slicedData.v.push(fullData.v[i]);
+                if (symbol.endsWith('.SA')) {
+                    try {
+                        return await BrapiProvider.getCandles(symbol, rangeStr);
+                    } catch (errBrapi) {
+                        console.warn(`[MarketData] Brapi fallback for ${symbol} candles, falling back to Prixe...`);
+                        return await PrixeProvider.getCandles(symbol, fromDate, toDate, interval);
                     }
+                } else if (symbol.endsWith('.TO')) {
+                    try {
+                        return await FMPProvider.getCandles(symbol);
+                    } catch (errFMP) {
+                        console.warn(`[MarketData] FMP fallback for ${symbol} candles, falling back to Prixe...`);
+                        return await PrixeProvider.getCandles(symbol, fromDate, toDate, interval);
+                    }
+                } else {
+                    return await PrixeProvider.getCandles(symbol, fromDate, toDate, interval);
                 }
-                return slicedData;
-            } catch (errAV) {
-                console.warn(`[MarketData] AV failed for ${symbol} candles, falling back to Finnhub/YF...`);
+            } catch (errPrimary) {
+                console.warn(`[MarketData] Primary API fallback for ${symbol} candles, falling back to Finnhub/YF...`);
                 // Calculate from/to for Finnhub/YF based on rangeStr
                 const to = Math.floor(Date.now() / 1000);
                 let from = to - (180 * 24 * 60 * 60); // default 6m
@@ -212,10 +231,12 @@ export class MarketData {
         }
 
         try {
-            return await AlphaVantageProvider.getOverview(symbol);
-        } catch (errAV) {
-            console.warn(`[MarketData] AV failed for ${symbol} overview, falling back to Finnhub profile...`);
+            // Note: Prixe historical API can take full_data: true, but we don't have a dedicated overview yet.
+            // Using Finnhub as primary for Overview/Profile since it's more comprehensive on metadata.
             return await FinnhubService.getProfile(symbol);
+        } catch (e) {
+            console.warn(`[MarketData] Overview failed for ${symbol}`, e);
+            return null;
         }
     }
 
@@ -235,7 +256,11 @@ export class MarketData {
                 ).slice(0, 10);
             }
 
-            return await FinnhubProvider.getNews(symbol, fromDate, toDate);
+            try {
+                return await PrixeProvider.getNews(symbol);
+            } catch (errPrixe) {
+                return await FinnhubProvider.getNews(symbol, fromDate, toDate);
+            }
         } catch (e) {
             console.error('[MarketData] getNews Error:', e);
             return [];
@@ -271,3 +296,4 @@ export class MarketData {
         }
     }
 }
+

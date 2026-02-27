@@ -31,7 +31,7 @@ export async function registerRoutes(server: FastifyInstance) {
             const queryUpper = q.toUpperCase();
 
             // 1. Search finance_db.json (US stocks with names)
-            const dbPath = path.join(__dirname, '..', 'data', 'finance_db.json');
+            const dbPath = path.resolve(__dirname, '..', '..', 'data', 'finance_db.json');
             if (fs.existsSync(dbPath)) {
                 const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
                 const matches = data.filter((item: any) =>
@@ -48,7 +48,7 @@ export async function registerRoutes(server: FastifyInstance) {
             }
 
             // 2. Search TSX60 universe (Canadian stocks)
-            const tsxPath = path.join(__dirname, 'data', 'tsx60.json');
+            const tsxPath = path.resolve(__dirname, 'data', 'tsx60.json');
             if (fs.existsSync(tsxPath)) {
                 const tsxSymbols: string[] = JSON.parse(fs.readFileSync(tsxPath, 'utf8'));
                 const tsxMatches = tsxSymbols
@@ -58,7 +58,7 @@ export async function registerRoutes(server: FastifyInstance) {
             }
 
             // 3. Search IBOV universe (Brazilian stocks)
-            const ibovPath = path.join(__dirname, 'data', 'ibov.json');
+            const ibovPath = path.resolve(__dirname, 'data', 'ibov.json');
             if (fs.existsSync(ibovPath)) {
                 const ibovSymbols: string[] = JSON.parse(fs.readFileSync(ibovPath, 'utf8'));
                 const ibovMatches = ibovSymbols
@@ -95,12 +95,15 @@ export async function registerRoutes(server: FastifyInstance) {
         let currency = market === 'CA' ? 'CAD' : market === 'BR' ? 'BRL' : 'USD';
 
         if (assetType === 'STOCK') {
-            const profile = await MarketData.getOverview(symbol, assetType);
-            if (!profile || Object.keys(profile).length === 0) {
-                return reply.status(400).send({ error: 'Invalid symbol or not found.' });
+            try {
+                const profile = await MarketData.getOverview(symbol, assetType);
+                if (profile && Object.keys(profile).length > 0) {
+                    displayName = profile.Name || profile.name || symbol;
+                    exchange = profile.Exchange || profile.exchange || exchange;
+                }
+            } catch (e) {
+                console.warn(`[TrackedAsset] Could not fetch profile for ${symbol}, using defaults.`);
             }
-            displayName = profile.Name || profile.name || symbol;
-            exchange = profile.Exchange || profile.exchange || '';
         } else {
             try {
                 // Verify crypto symbol exists by quoting it
@@ -756,7 +759,15 @@ export async function registerRoutes(server: FastifyInstance) {
             const fs = await import('fs');
             const path = await import('path');
             const filePath = path.join(__dirname, 'data', `${universe.toLowerCase()}.json`);
-            targetSymbols = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            if (fs.existsSync(filePath)) {
+                targetSymbols = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            } else {
+                // Fallback to src/data if running from dist
+                const fallbackPath = path.resolve(process.cwd(), 'src', 'data', `${universe.toLowerCase()}.json`);
+                if (fs.existsSync(fallbackPath)) {
+                    targetSymbols = JSON.parse(fs.readFileSync(fallbackPath, 'utf-8'));
+                }
+            }
         }
 
         if (targetSymbols.length === 0) {
@@ -794,25 +805,27 @@ export async function registerRoutes(server: FastifyInstance) {
         return { status: "Job queued" };
     });
 
-    server.post('/api/admin/screener/run', { preValidation: [server.requireAdmin], config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (req, reply) => {
+    server.post('/api/admin/screener/run', { preValidation: [server.requireAdmin] }, async (req, reply) => {
         const schema = z.object({
             universe: z.enum(['SP500', 'NASDAQ100', 'CRYPTO', 'TSX60', 'IBOV']),
-            date: z.string()
+            date: z.string().optional()
         });
         const { universe, date } = schema.parse(req.body);
+        const targetDate = date || new Date().toISOString().split('T')[0];
         const assetType = universe === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
 
         const jobState = await prisma.jobState.findUnique({
             where: { universeType_universeName: { universeType: assetType, universeName: universe } }
         });
+
         if (jobState && jobState.status === 'RUNNING') {
             return reply.status(409).send({ error: 'Screener job is already running for this universe.' });
         }
 
         setImmediate(() => {
-            ScreenerService.runScreenerJob(universe, date).catch(console.error);
+            ScreenerService.runScreenerJob(universe, targetDate).catch(console.error);
         });
 
-        return { status: "Screener job queued", universe };
+        return { status: "Screener job queued", universe, date: targetDate };
     });
 }

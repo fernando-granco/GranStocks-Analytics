@@ -67,18 +67,25 @@ export class ScreenerService {
     }
 
     private static loadUniverse(universe: string): string[] {
-        // use process.cwd() instead of __dirname to handle tsx / tsc compiled paths consistently out of src or dist
-        const isDist = __dirname.includes('dist');
-        const dir = isDist ? path.join(process.cwd(), 'src', 'data') : path.join(__dirname, '..', 'data');
-        const filePath = path.join(dir, `${universe.toLowerCase()}.json`);
+        // Universal path resolution: search both src/data and dist/data
+        const paths = [
+            path.resolve(__dirname, '..', 'data', `${universe.toLowerCase()}.json`),
+            path.resolve(process.cwd(), 'src', 'data', `${universe.toLowerCase()}.json`),
+            path.resolve(process.cwd(), 'server', 'src', 'data', `${universe.toLowerCase()}.json`),
+            path.resolve(__dirname, 'data', `${universe.toLowerCase()}.json`) // Case where we're in src/services
+        ];
 
-        try {
-            const data = fs.readFileSync(filePath, 'utf-8');
-            return JSON.parse(data);
-        } catch (e) {
-            console.error(`Could not load universe JSON for ${universe} at ${filePath}`);
-            return [];
+        for (const filePath of paths) {
+            try {
+                if (fs.existsSync(filePath)) {
+                    const data = fs.readFileSync(filePath, 'utf-8');
+                    return JSON.parse(data);
+                }
+            } catch (e) { }
         }
+
+        console.error(`Could not load universe JSON for ${universe} after searching multiple paths.`);
+        return [];
     }
 
     private static calculateScreenerMetrics(closes: number[], highs: number[], lows: number[], config: AnalysisConfigPayload['screener'] = DEFAULT_ANALYSIS_CONFIG.screener) {

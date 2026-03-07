@@ -270,24 +270,24 @@ export default function Screener() {
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <div className="text-[11px] font-bold text-neutral-100 bg-neutral-800 border border-neutral-700 px-2 py-0.5 rounded-full flex items-center justify-center">
-                                            {c.score.toFixed(0)}
+                                        <div className="text-xs font-medium bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded flex items-center justify-center h-fit">
+                                            Score: {c.score.toFixed(0)}
                                         </div>
                                         {isTracked(c.symbol) ? (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); untrackMutation.mutate(c.symbol); }}
-                                                className="text-amber-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-colors tooltip z-10"
+                                                className="text-amber-400 hover:text-amber-300 transition-colors tooltip z-10"
                                                 title="Untrack Asset"
                                             >
-                                                <Star className="w-5 h-5 fill-current" />
+                                                <Star className="w-5 h-5 fill-amber-400" />
                                             </button>
                                         ) : (
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); trackMutation.mutate(c.symbol); }}
-                                                className="text-neutral-500 hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-colors tooltip z-10"
+                                                className="text-neutral-500 hover:text-amber-400 transition-colors tooltip z-10"
                                                 title="Track Asset"
                                             >
-                                                <Star className="w-5 h-5" />
+                                                <Star className="w-5 h-5 fill-transparent" />
                                             </button>
                                         )}
                                     </div>

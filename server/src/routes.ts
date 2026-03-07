@@ -8,6 +8,8 @@ import { PredictionService, IndicatorService, FirmViewService } from './services
 import { PriceHistoryService } from './services/price-history';
 import { encryptText } from './utils/crypto';
 import { toDateString } from './utils/date-helpers';
+import { inferCurrency } from './utils/currency';
+import { FXService } from './services/fx';
 import z from 'zod';
 
 export async function registerRoutes(server: FastifyInstance) {
@@ -41,8 +43,9 @@ export async function registerRoutes(server: FastifyInstance) {
                     symbol: item.symbol,
                     name: item.name,
                     exchange: item.exchange,
-                    market: 'US',
-                    type: 'STOCK'
+                    assetType: 'STOCK',
+                    currency: 'USD',
+                    country: 'US'
                 }));
                 results.push(...matches);
             }
@@ -53,7 +56,14 @@ export async function registerRoutes(server: FastifyInstance) {
                 const tsxSymbols: string[] = JSON.parse(fs.readFileSync(tsxPath, 'utf8'));
                 const tsxMatches = tsxSymbols
                     .filter(sym => sym.toUpperCase().includes(queryUpper))
-                    .map(sym => ({ symbol: sym, name: sym.replace('.TO', ''), exchange: 'TSX', market: 'CA', type: 'STOCK' }));
+                    .map(sym => ({
+                        symbol: sym,
+                        name: sym.replace('.TO', ''),
+                        exchange: 'TSX',
+                        assetType: 'STOCK',
+                        currency: 'CAD',
+                        country: 'CA'
+                    }));
                 results.push(...tsxMatches);
             }
 
@@ -63,14 +73,28 @@ export async function registerRoutes(server: FastifyInstance) {
                 const ibovSymbols: string[] = JSON.parse(fs.readFileSync(ibovPath, 'utf8'));
                 const ibovMatches = ibovSymbols
                     .filter(sym => sym.toUpperCase().includes(queryUpper))
-                    .map(sym => ({ symbol: sym, name: sym.replace('.SA', ''), exchange: 'B3/IBOV', market: 'BR', type: 'STOCK' }));
+                    .map(sym => ({
+                        symbol: sym,
+                        name: sym.replace('.SA', ''),
+                        exchange: 'B3',
+                        assetType: 'STOCK',
+                        currency: 'BRL',
+                        country: 'BR'
+                    }));
                 results.push(...ibovMatches);
             }
 
             // 4. If it looks like a crypto pair, add it
             if (queryUpper.endsWith('USDT') || queryUpper === 'BTC' || queryUpper === 'ETH') {
                 const cryptoSym = queryUpper.endsWith('USDT') ? queryUpper : `${queryUpper}USDT`;
-                results.unshift({ symbol: cryptoSym, name: 'Binance Crypto Pair', exchange: 'CRYPTO', market: 'CRYPTO', type: 'CRYPTO' });
+                results.unshift({
+                    symbol: cryptoSym,
+                    name: 'Binance Crypto Pair',
+                    exchange: 'CRYPTO',
+                    assetType: 'CRYPTO',
+                    currency: 'USD',
+                    country: 'GLOBAL'
+                });
             }
 
             return results.slice(0, 50); // Hard cap for UI performance
@@ -573,12 +597,16 @@ export async function registerRoutes(server: FastifyInstance) {
         const assets = await prisma.asset.findMany({
             where: { symbol: { in: selections.map(s => s.symbol) } }
         });
-        const assetMap = new Map(assets.map(a => [a.symbol, a.type]));
+        const assetMap = new Map(assets.map(a => [a.symbol, a]));
 
         const symbols = selections.map(s => s.symbol);
 
         // Get latest predictions and indicators for selected symbols
         const results = await Promise.all(symbols.map(async sym => {
+            const assetData = assetMap.get(sym);
+            const assetType = assetData?.type || 'STOCK';
+            const { currency, isUsdNative } = inferCurrency(sym, assetType);
+
             const pred = await prisma.predictionSnapshot.findMany({
                 where: { symbol: sym },
                 orderBy: { date: 'desc' },
@@ -588,7 +616,29 @@ export async function registerRoutes(server: FastifyInstance) {
                 where: { symbol: sym },
                 orderBy: { date: 'desc' }
             });
-            return { symbol: sym, assetType: assetMap.get(sym) || 'STOCK', prediction: pred, indicators: ind };
+
+            // Re-map internal structures to ensure client gets explicitly typed currencies
+            let usdEqPrice = null;
+            if (!isUsdNative && ind && ind.indicatorsJson) {
+                try {
+                    const parsedInd = JSON.parse(ind.indicatorsJson);
+                    const currentNativePrice = parsedInd.currentPrice;
+                    if (currentNativePrice) {
+                        const rate = await FXService.getFxRate(currency, 'USD');
+                        usdEqPrice = currentNativePrice * rate;
+                    }
+                } catch (e) { console.error('Error computing overview FX:', e) }
+            }
+
+            return {
+                symbol: sym,
+                assetType,
+                currency,
+                isUsdNative,
+                usdEqPrice,
+                prediction: pred,
+                indicators: ind
+            };
         }));
 
         return results;

@@ -1,102 +1,66 @@
-import YahooFinance from 'yahoo-finance2';
 import { prisma } from './cache';
-import { toDateString } from '../utils/date-helpers';
-
-const yahooFinance = new YahooFinance({ suppressNotices: ['ripHistorical'] });
 
 export class FXService {
+    static getApiKey(): string {
+        const key = process.env.ALPHAVANTAGE_API_KEY;
+        if (!key) console.warn("ALPHAVANTAGE_API_KEY is not configured. FX service will fail.");
+        return key || '';
+    }
+
     /**
-     * Get historical USD conversion rates for a currency.
-     * Returns a map of YYYY-MM-DD -> rate (1 Unit of Currency = X USD)
+     * Gets the real-time FX rate from a source currency to a target currency.
+     * Caches the result using CachedResponse table for 1 hour.
      */
-    static async getHistoricalRates(fromCurrency: string, days: number = 365): Promise<Map<string, number>> {
-        const ratesMap = new Map<string, number>();
-        if (fromCurrency === 'USD') return ratesMap;
+    static async getFxRate(fromCcy: string, toCcy: string): Promise<number> {
+        if (fromCcy === toCcy) return 1.0;
 
-        const symbol = `${fromCurrency}USD=X`;
-        const to = new Date();
-        const from = new Date();
-        from.setDate(from.getDate() - days);
+        const cacheKey = `fx_rate_${fromCcy}_${toCcy}`;
 
+        // 1. Check Cache
+        const cached = await prisma.cachedResponse.findUnique({ where: { cacheKey } });
+        if (cached && !cached.isStale && (Date.now() - new Date(cached.ts).getTime() < 3600000)) { // 1 hour TTL
+            const parsed = JSON.parse(cached.payloadJson);
+            return typeof parsed.rate === 'number' ? parsed.rate : parseFloat(parsed.rate);
+        }
+
+        // 2. Fetch Live
         try {
-            // Check cache/DB first (reuse PriceHistory for FX rates to simplify)
-            const rows = await prisma.priceHistory.findMany({
-                where: {
-                    symbol,
-                    assetType: 'FX',
-                    date: { gte: toDateString(from) }
-                },
-                orderBy: { date: 'asc' }
-            });
+            const url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${fromCcy}&to_currency=${toCcy}&apikey=${this.getApiKey()}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`AlphaVantage returned ${res.status}`);
 
-            if (rows.length >= days * 0.5) { // 50% coverage check
-                rows.forEach(r => ratesMap.set(r.date, r.close));
-                return ratesMap;
-            }
+            const data = await res.json();
 
-            // Fetch live if cache insufficient
-            console.log(`[FXService] Fetching historical rates for ${symbol}...`);
-            const results = await yahooFinance.historical(symbol, {
-                period1: from,
-                period2: to,
-                interval: '1d'
-            }) as any[];
+            if (data['Realtime Currency Exchange Rate'] && data['Realtime Currency Exchange Rate']['5. Exchange Rate']) {
+                const rate = parseFloat(data['Realtime Currency Exchange Rate']['5. Exchange Rate']);
 
-            if (results && results.length > 0) {
-                const txs = results.map(r => {
-                    const date = toDateString(r.date);
-                    ratesMap.set(date, r.close);
-                    return prisma.priceHistory.upsert({
-                        where: { assetType_symbol_date: { assetType: 'FX', symbol, date } },
-                        update: { close: r.close, open: r.open, high: r.high, low: r.low, volume: 0 },
-                        create: { assetType: 'FX', symbol, date, close: r.close, open: r.open, high: r.high, low: r.low, volume: 0 }
-                    });
+                // 3. Update Cache
+                await prisma.cachedResponse.upsert({
+                    where: { cacheKey },
+                    update: { payloadJson: JSON.stringify({ rate }), ts: new Date(), isStale: false },
+                    create: { cacheKey, payloadJson: JSON.stringify({ rate }), ttlSeconds: 3600, source: 'ALPHAVANTAGE' }
                 });
-                await Promise.all(txs);
+
+                return rate;
+            } else if (data['Note']) {
+                console.warn(`[FXService] AlphaVantage rate limit hit for ${fromCcy} -> ${toCcy}.`);
+            } else {
+                console.warn(`[FXService] Malformed AlphaVantage response for ${fromCcy} -> ${toCcy}:`, data);
             }
-
-            return ratesMap;
         } catch (e) {
-            console.error(`[FXService] Failed to fetch FX rates for ${symbol}:`, e);
-            return ratesMap;
-        }
-    }
-
-    /**
-     * Get a single conversion rate for today or last known.
-     */
-    static async getCurrentRate(fromCurrency: string): Promise<number> {
-        if (fromCurrency === 'USD') return 1.0;
-        const symbol = `${fromCurrency}USD=X`;
-
-        try {
-            const quote = await yahooFinance.quote(symbol);
-            return quote.regularMarketPrice || 1.0;
-        } catch (e) {
-            // Fallback to last known in DB
-            const last = await prisma.priceHistory.findFirst({
-                where: { symbol, assetType: 'FX' },
-                orderBy: { date: 'desc' }
-            });
-            return last?.close || 1.0;
-        }
-    }
-
-    /**
-     * Get a cross rate between any two currencies.
-     * Uses USD as a bridge if needed.
-     */
-    static async getCrossRate(from: string, to: string): Promise<number> {
-        if (from === to) return 1.0;
-        if (to === 'USD') return this.getCurrentRate(from);
-        if (from === 'USD') {
-            const rateToUSD = await this.getCurrentRate(to);
-            return 1.0 / rateToUSD;
+            console.error(`[FXService] Error fetching live FX rate ${fromCcy} -> ${toCcy}:`, e);
         }
 
-        // both non-USD: (from/USD) * (USD/to) => rateFromUSD * (1/rateToUSD)
-        const rateFromUSD = await this.getCurrentRate(from);
-        const rateToUSD = await this.getCurrentRate(to);
-        return rateFromUSD / rateToUSD;
+        // 4. Fallback to stale cache if available
+        if (cached) {
+            const parsed = JSON.parse(cached.payloadJson);
+            return typeof parsed.rate === 'number' ? parsed.rate : parseFloat(parsed.rate);
+        }
+
+        // 5. Final Defaults
+        console.warn(`[FXService] Critical failure getting FX for ${fromCcy}->${toCcy}, using hardcoded defaults.`);
+        if (fromCcy === 'BRL' && toCcy === 'USD') return 0.17; // Approximate
+        if (fromCcy === 'CAD' && toCcy === 'USD') return 0.70; // Approximate
+        return 1.0;
     }
 }

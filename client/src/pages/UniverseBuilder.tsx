@@ -41,7 +41,7 @@ export default function UniverseBuilder() {
         if (exchange) params.append('exchange', exchange);
 
         try {
-            const res = await fetch(`/api/symbols/search?${params.toString()}`);
+            const res = await fetch(`/api/assets/search?${params.toString()}`);
             const data = await res.json();
             setPreviewResults(data || []);
         } catch (e) {

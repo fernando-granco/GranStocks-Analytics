@@ -105,8 +105,8 @@ export default function Settings() {
         CONSENSUS: 'Please review this deterministic market data for {{ASSET_SYMBOL}} on {{DATE}}:\n\n{{EVIDENCE_PACK}}\n\nProvide a short, 2-3 sentence financial analysis.',
         SCREENER: 'Analyze the following screener data for {{ASSET_SYMBOL}}:\n\n{{EVIDENCE_PACK}}\n\nProvide a brief investment rationale.',
         RISK: 'Assess the risk profile for {{ASSET_SYMBOL}} based on the following indicators:\n\n{{EVIDENCE_PACK}}\n\nHighlight key risk factors and potential downside.',
-        PORTFOLIO: 'You are analyzing a portfolio of assets. Evaluate concentration, volatility, and leaders/laggards. Discuss breadth and diversification based on the following data:\n\n{{EVIDENCE_PACK}}\n\nProvide a high-level summary of the portfolio health.',
-        UNIVERSE: 'You are analyzing a group of assets in a specific market universe. Evaluate concentration, volatility, and leaders/laggards. Discuss breadth and diversification based on the following data:\n\n{{EVIDENCE_PACK}}\n\nHighlight key market trends and sector performance.'
+        PORTFOLIO: 'You are analyzing a portfolio of assets. Evaluate concentration, volatility, and leaders/laggards. Discuss breadth and diversification based on the following data:\n\n{{EVIDENCE_PACK}}\n\nProvide a high-level summary of the portfolio health and specific actions if any.',
+        UNIVERSE: 'You are analyzing a group of assets in a specific market universe. Evaluate concentration, volatility, and leaders/laggards. Discuss breadth and diversification based on the following data:\n\n{{EVIDENCE_PACK}}\n\nHighlight key market trends, sector performance, and which assets represent the best immediate opportunities.'
     };
 
     const [promptRole, setPromptRole] = useState('CONSENSUS');
@@ -261,83 +261,144 @@ export default function Settings() {
             )}
 
             {activeTab === 'PROVIDERS' && (
-                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                    <h3 className="text-xl font-semibold mb-2">{t('settings.providers.title')}</h3>
-                    <p className="text-neutral-500 text-sm mb-6">{t('settings.providers.desc')}</p>
-
-                    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); saveConfigMutation.mutate(); }}>
-                        <div className="flex justify-between items-center mb-2">
-                            <h4 className="text-sm font-medium text-neutral-400">{configId ? 'Edit Configuration' : 'Add New Configuration'}</h4>
-                            {configId && (
-                                <button type="button" onClick={() => { setConfigId(null); setConfigName(''); setConfigApiKey(''); setConfigModel(''); setConfigBaseUrl(''); }} className="text-xs text-indigo-400 hover:text-indigo-300">Cancel Edit</button>
-                            )}
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 relative">
+                    <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h3 className="text-xl font-semibold mb-2">{t('settings.providers.title')}</h3>
+                            <p className="text-neutral-500 text-sm">{t('settings.providers.desc')}</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <input type="text" placeholder="Config Name (e.g. My ChatGPT)" value={configName} onChange={e => setConfigName(e.target.value)} required className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500" />
-                            <select value={configProvider} onChange={e => {
-                                setConfigProvider(e.target.value);
-                                if (!configId) setConfigModel(''); // reset model only if creating new
-                            }} className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500">
-                                <option value="OPENAI">OpenAI</option>
-                                <option value="ANTHROPIC">Anthropic</option>
-                                <option value="GEMINI">Google Gemini</option>
-                                <option value="XAI">xAI (Grok)</option>
-                                <option value="DEEPSEEK">DeepSeek</option>
-                                <option value="GROQ">Groq</option>
-                                <option value="TOGETHER">Together AI</option>
-                                <option value="OPENAI_COMPAT">OpenAI Compatible (v1)</option>
-                            </select>
-                        </div>
-                        {configProvider === 'OPENAI_COMPAT' && (
-                            <p className="text-xs text-indigo-400 mt-1">
-                                Use this to connect to any other API that uses the OpenAI format (e.g., LM Studio, vLLM, custom clusters). Provide your custom endpoint in the "Base URL" field.
-                            </p>
-                        )}
-                        <input type="password" placeholder="API Key" value={configApiKey} onChange={e => setConfigApiKey(e.target.value)} required className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500" />
-                        <div className="grid grid-cols-2 gap-4">
-                            <input list="model-options" type="text" placeholder={configProvider === 'ANTHROPIC' ? 'claude-3-5-sonnet-20241022' : configProvider === 'DEEPSEEK' ? 'deepseek-chat' : configProvider === 'GROQ' ? 'llama3-70b-8192' : configProvider === 'GEMINI' ? 'gemini-1.5-flash' : configProvider === 'XAI' ? 'grok-beta' : 'Model Name (e.g. gpt-4o)'} value={configModel} onChange={e => setConfigModel(e.target.value)} required className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500" />
-                            <datalist id="model-options">
-                                {configProvider === 'OPENAI' && <><option value="gpt-4o" /><option value="gpt-4o-mini" /><option value="o1-preview" /></>}
-                                {configProvider === 'ANTHROPIC' && <><option value="claude-3-5-sonnet-20241022" /><option value="claude-3-5-haiku-20241022" /><option value="claude-3-opus-20240229" /></>}
-                                {configProvider === 'GEMINI' && <><option value="gemini-1.5-flash" /><option value="gemini-1.5-pro" /><option value="gemini-2.0-flash-exp" /></>}
-                                {configProvider === 'XAI' && <><option value="grok-beta" /><option value="grok-vision-beta" /><option value="grok-2" /></>}
-                                {configProvider === 'DEEPSEEK' && <><option value="deepseek-chat" /><option value="deepseek-reasoner" /></>}
-                                {configProvider === 'GROQ' && <><option value="llama3-70b-8192" /><option value="llama3-8b-8192" /><option value="mixtral-8x7b-32768" /></>}
-                                {configProvider === 'TOGETHER' && <><option value="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo" /><option value="mistralai/Mixtral-8x7B-Instruct-v0.1" /></>}
-                            </datalist>
-                            <input type="text" placeholder="Base URL (Optional)" value={configBaseUrl} onChange={e => setConfigBaseUrl(e.target.value)} className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500" />
-                        </div>
-
-                        <button type="submit" disabled={saveConfigMutation.isPending} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 font-medium text-white rounded-lg w-full transition-colors mt-2">
-                            {saveConfigMutation.isPending ? 'Saving...' : configId ? 'Update Provider' : 'Save Provider'}
+                        <button
+                            onClick={() => { setConfigId(null); setConfigName(''); setConfigApiKey(''); setConfigModel(''); setConfigBaseUrl(''); document.getElementById('provider-modal')?.classList.remove('hidden'); }}
+                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition-colors"
+                        >
+                            + Add Provider
                         </button>
-                    </form>
+                    </div>
 
-                    <div className="mt-8 space-y-2">
-                        {configs?.map((cfg: any) => (
-                            <div key={cfg.id} className="flex items-center justify-between bg-neutral-950 border border-neutral-800 hover:border-neutral-700 transition-colors cursor-pointer rounded-lg px-4 py-3" onClick={() => {
-                                setConfigId(cfg.id);
-                                setConfigName(cfg.name);
-                                setConfigProvider(cfg.provider);
-                                setConfigModel(cfg.model);
-                                setConfigApiKey(`****${cfg.keyLast4}`);
-                                setConfigBaseUrl(cfg.baseUrl || '');
-                            }}>
-                                <div>
-                                    <div className="font-medium text-white">{cfg.name} <span className="text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded ml-2">{cfg.provider}</span></div>
-                                    <div className="text-xs text-neutral-500 mt-1">Model: {cfg.model} | Key: ****{cfg.keyLast4}</div>
+                    {/* Modal Overlay */}
+                    <div id="provider-modal" className={`hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4`}>
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative">
+                            <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-neutral-950/50">
+                                <h3 className="text-xl font-semibold">{configId ? 'Edit Configuration' : 'Add New Configuration'}</h3>
+                                <button onClick={() => document.getElementById('provider-modal')?.classList.add('hidden')} className="text-neutral-500 hover:text-white transition-colors">✕</button>
+                            </div>
+
+                            <form className="p-6 space-y-5" onSubmit={(e) => { e.preventDefault(); saveConfigMutation.mutate(); document.getElementById('provider-modal')?.classList.add('hidden'); }}>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-neutral-400">Target Name</label>
+                                        <input type="text" placeholder="e.g. My ChatGPT" value={configName} onChange={e => setConfigName(e.target.value)} required className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-neutral-400">Provider Interface</label>
+                                        <select value={configProvider} onChange={e => {
+                                            setConfigProvider(e.target.value);
+                                            if (!configId) setConfigModel(''); // reset model only if creating new
+                                        }} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors">
+                                            <option value="OPENAI">OpenAI</option>
+                                            <option value="ANTHROPIC">Anthropic</option>
+                                            <option value="GEMINI">Google Gemini</option>
+                                            <option value="XAI">xAI (Grok)</option>
+                                            <option value="DEEPSEEK">DeepSeek</option>
+                                            <option value="GROQ">Groq</option>
+                                            <option value="TOGETHER">Together AI</option>
+                                            <option value="OPENAI_COMPAT">OpenAI Compatible (v1)</option>
+                                        </select>
+                                    </div>
                                 </div>
+
+                                {configProvider === 'OPENAI_COMPAT' && (
+                                    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-3">
+                                        <p className="text-xs text-indigo-400">
+                                            Use this to connect to any API that uses OpenAI format (LM Studio, vLLM, custom clusters). Provide your custom endpoint below.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-medium text-neutral-400">API Key {configId && '(Leave blank to keep existing)'}</label>
+                                    <input type="password" placeholder={configId ? "••••••••••••••••" : "Your API Key..."} value={configApiKey} onChange={e => setConfigApiKey(e.target.value)} required={!configId} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-neutral-400">Model Selector</label>
+                                        <input list="model-options" type="text" placeholder={configProvider === 'ANTHROPIC' ? 'claude-3-5-sonnet-20241022' : configProvider === 'DEEPSEEK' ? 'deepseek-chat' : configProvider === 'GROQ' ? 'llama3-70b-8192' : configProvider === 'GEMINI' ? 'gemini-1.5-flash' : configProvider === 'XAI' ? 'grok-beta' : 'Model Identifier Name'} value={configModel} onChange={e => setConfigModel(e.target.value)} required className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
+                                        <datalist id="model-options">
+                                            {configProvider === 'OPENAI' && <><option value="gpt-4o" /><option value="gpt-4o-mini" /><option value="o1-preview" /></>}
+                                            {configProvider === 'ANTHROPIC' && <><option value="claude-3-5-sonnet-20241022" /><option value="claude-3-5-haiku-20241022" /><option value="claude-3-opus-20240229" /></>}
+                                            {configProvider === 'GEMINI' && <><option value="gemini-1.5-flash" /><option value="gemini-1.5-pro" /><option value="gemini-2.0-flash-exp" /></>}
+                                            {configProvider === 'XAI' && <><option value="grok-beta" /><option value="grok-vision-beta" /><option value="grok-2" /></>}
+                                            {configProvider === 'DEEPSEEK' && <><option value="deepseek-chat" /><option value="deepseek-reasoner" /></>}
+                                            {configProvider === 'GROQ' && <><option value="llama3-70b-8192" /><option value="llama3-8b-8192" /><option value="mixtral-8x7b-32768" /></>}
+                                            {configProvider === 'TOGETHER' && <><option value="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo" /><option value="mistralai/Mixtral-8x7B-Instruct-v0.1" /></>}
+                                        </datalist>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-neutral-400">Base URL (Overrides Default)</label>
+                                        <input type="text" placeholder="Optional" value={configBaseUrl} onChange={e => setConfigBaseUrl(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button type="button" onClick={() => document.getElementById('provider-modal')?.classList.add('hidden')} className="flex-1 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 font-medium text-white rounded-lg transition-colors">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" disabled={saveConfigMutation.isPending} className="flex-1 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 font-medium text-white rounded-lg transition-colors">
+                                        {saveConfigMutation.isPending ? 'Saving...' : configId ? 'Update Provider' : 'Save New Provider'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <select value={configProvider} onChange={e => {
+                            setConfigProvider(e.target.value);
+                            if (!configId) setConfigModel(''); // reset model only if creating new
+                        }} className="bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 focus:outline-none focus:border-indigo-500">
+                            <option value="OPENAI">OpenAI</option>
+                            <option value="ANTHROPIC">Anthropic</option>
+                            <option value="GEMINI">Google Gemini</option>
+                            <option value="XAI">xAI (Grok)</option>
+                            <option value="DEEPSEEK">DeepSeek</option>
+                            <option value="GROQ">Groq</option>
+                            <option value="TOGETHER">Together AI</option>
+                            <option value="OPENAI_COMPAT">OpenAI Compatible (v1)</option>
+                        </select>
+                    </div>
+                    {configs?.map((cfg: any) => (
+                        <div key={cfg.id} className="flex items-center justify-between bg-neutral-950 border border-neutral-800 hover:border-neutral-700 transition-colors rounded-xl px-5 py-4">
+                            <div>
+                                <div className="font-medium text-white text-base mb-1">{cfg.name} <span className="text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded ml-2 font-semibold tracking-wide uppercase">{cfg.provider}</span></div>
+                                <div className="text-sm text-neutral-500 font-mono">Model: {cfg.model} | Key: ****{cfg.keyLast4}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); deleteConfigMutation.mutate(cfg.id); }}
+                                    onClick={() => {
+                                        setConfigId(cfg.id);
+                                        setConfigName(cfg.name);
+                                        setConfigProvider(cfg.provider);
+                                        setConfigModel(cfg.model);
+                                        setConfigApiKey('');
+                                        setConfigBaseUrl(cfg.baseUrl || '');
+                                        document.getElementById('provider-modal')?.classList.remove('hidden');
+                                    }}
+                                    className="text-neutral-400 hover:text-indigo-400 px-3 py-1.5 rounded-lg border border-neutral-800 hover:border-indigo-500/50 bg-neutral-900 transition-colors text-sm font-medium"
+                                >
+                                    Edit
+                                </button>
+                                <button
+                                    onClick={() => { if (window.confirm('Delete this provider?')) deleteConfigMutation.mutate(cfg.id); }}
                                     disabled={deleteConfigMutation.isPending}
-                                    className="text-neutral-500 hover:text-rose-400 p-2 transition-colors disabled:opacity-40"
-                                    title="Delete this provider"
+                                    className="text-neutral-500 hover:text-rose-400 p-2 rounded-lg hover:bg-rose-500/10 transition-colors disabled:opacity-40"
+                                    title="Delete provider"
                                 >
                                     <Trash2 size={18} />
                                 </button>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))}
                 </div>
             )}
 

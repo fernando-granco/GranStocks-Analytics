@@ -626,7 +626,7 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <div className="prose prose-invert prose-sm max-h-80 overflow-y-auto custom-scrollbar pr-2">
+                                                        <div className="prose prose-invert prose-sm pr-2">
                                                             {narrativeText}
                                                         </div>
                                                         {parsedAction && (

@@ -23,8 +23,12 @@ export function PriceDisplay({
 }: PriceDisplayProps) {
     const formattedNative = nativePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // Auto-detect USD native if not explicitly provided
-    const isUsd = isUsdNative !== undefined ? isUsdNative : nativeCcy === 'USD';
+    // According to Master Prompt:
+    // 1. If USD-native or currency is missing (treat as USD): show ONE line only.
+    // 2. If non-USD (BRL/CAD): show TWO lines only (native + usdEqPrice).
+    // 3. If usdEqPrice is missing, show ONLY the native line until usdEqPrice is computed.
+
+    const isUsd = isUsdNative || nativeCcy === 'USD' || !nativeCcy;
 
     if (isUsd) {
         return (
@@ -37,10 +41,8 @@ export function PriceDisplay({
     return (
         <div className={className}>
             <div className={primaryClassName}>{formattedNative} {nativeCcy}</div>
-            {usdEqPrice !== undefined && usdEqPrice > 0 ? (
+            {usdEqPrice && usdEqPrice > 0 && (
                 <div className={secondaryClassName}>~{usdEqPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCcyLabel}</div>
-            ) : (
-                <div className={secondaryClassName}>~— {baseCcyLabel}</div>
             )}
         </div>
     );

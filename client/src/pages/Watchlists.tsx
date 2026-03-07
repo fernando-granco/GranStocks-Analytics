@@ -46,7 +46,7 @@ export default function Watchlists() {
         setIsSearching(true);
         try {
             const params = new URLSearchParams({ q: searchQ });
-            const res = await fetch(`/api/symbols/search?${params.toString()}`);
+            const res = await fetch(`/api/assets/search?${params.toString()}`);
             const data = await res.json();
             setSearchResults(data || []);
         } catch (e) {

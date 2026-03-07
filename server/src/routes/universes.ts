@@ -300,16 +300,33 @@ export default async function universeRoutes(server: FastifyInstance) {
         const authUser = req.user as { id: string };
         const { id } = req.params as { id: string };
 
+        const schema = z.object({
+            llmConfigIds: z.array(z.string()).optional()
+        });
+        const { llmConfigIds } = schema.parse(req.body || {});
+
         const universe = await prisma.universe.findFirst({
             where: { id, userId: authUser.id }
         });
         if (!universe) return reply.status(404).send({ error: 'Universe not found' });
 
-        // Get the first available AI provider for this user
-        const config = await prisma.userLLMConfig.findFirst({
-            where: { userId: authUser.id }
-        });
-        if (!config) return reply.status(400).send({ error: 'No active AI Provider configured. Please add one in Settings.' });
+        let ownedConfigs = [];
+        if (llmConfigIds && llmConfigIds.length > 0) {
+            ownedConfigs = await prisma.userLLMConfig.findMany({
+                where: { id: { in: llmConfigIds }, userId: authUser.id }
+            });
+            if (ownedConfigs.length !== llmConfigIds.length) {
+                return reply.status(403).send({ error: 'One or more LLM Configurations are unauthorized or not found.' });
+            }
+        } else {
+            // Get the first available AI provider for this user
+            const config = await prisma.userLLMConfig.findFirst({
+                where: { userId: authUser.id }
+            });
+            if (config) ownedConfigs.push(config);
+        }
+
+        if (ownedConfigs.length === 0) return reply.status(400).send({ error: 'No active AI Provider configured. Please add one in Settings.' });
 
         const results = await resolveUniverseAssets(universe);
         if (!results || results.length === 0) return reply.status(400).send({ error: 'Universe is empty.' });
@@ -361,30 +378,45 @@ export default async function universeRoutes(server: FastifyInstance) {
         const promptJson = JSON.stringify(promptData.slice(0, 50));
         const date = new Date().toISOString().split('T')[0];
 
-        try {
-            // Sanitize language
-            let language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
-            if (!['en', 'pt-BR', 'es', 'fr', 'de'].includes(language)) {
-                language = 'en';
-            }
+        // Support multi-LLM
+        const narrativeResults: any[] = [];
+        const errors: string[] = [];
 
-            const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, `Group: ${universe.name}`, date, promptJson, 'UNIVERSE', language);
-
-            const narrative = await prisma.aiNarrative.create({
-                data: {
-                    userId: authUser.id,
-                    symbol: `Group: ${universe.name}`,
-                    date,
-                    llmConfigId: config.id,
-                    contentText: narrativeText,
-                    providerUsed: config.provider,
-                    modelUsed: config.model
+        for (const config of ownedConfigs) {
+            try {
+                // Sanitize language
+                let language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+                if (!['en', 'pt-BR', 'es', 'fr', 'de'].includes(language)) {
+                    language = 'en';
                 }
-            });
-            return { narrative };
-        } catch (e: any) {
-            return reply.status(500).send({ error: e.message });
+
+                const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, `Group: ${universe.name}`, date, promptJson, 'UNIVERSE', language);
+
+                const narrative = await prisma.aiNarrative.create({
+                    data: {
+                        userId: authUser.id,
+                        symbol: `Group: ${universe.name}`,
+                        date,
+                        llmConfigId: config.id,
+                        contentText: narrativeText,
+                        providerUsed: config.provider,
+                        modelUsed: config.model
+                    }
+                });
+                narrativeResults.push(narrative);
+            } catch (e: any) {
+                const msg = e.message || 'Unknown LLM error';
+                errors.push(`Provider error for ${config.name}: ${msg}`);
+            }
         }
+
+        if (narrativeResults.length === 0 && errors.length > 0) {
+            return reply.status(422).send({ error: errors.join('\n') });
+        }
+
+        // Return a shape that is robust for the frontend:
+        // By setting both narrative (for backward compat) and narratives (for array mapping).
+        return { narrative: narrativeResults.length > 0 ? narrativeResults[0].contentText : null, narratives: narrativeResults, errors };
     });
 
     // Save ordering directly into the customized array

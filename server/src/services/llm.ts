@@ -271,7 +271,7 @@ export class LLMService {
         }
 
         if (isJsonMode) {
-            prompt += '\n\nYou MUST return ONLY valid JSON in this exact structure: { "action": "BUY" | "WAIT" | "SELL", "narrative": "your strictly educational analysis" }';
+            prompt += '\n\nYou MUST return ONLY valid JSON in this exact structure: { "action": "BUY" | "HOLD" | "SELL", "narrative": "your strictly educational analysis" }';
         }
 
         let narrative = await provider.generateNarrative(prompt, language);
@@ -289,7 +289,7 @@ export class LLMService {
                 return cleanNarrative;
             } catch (e) {
                 // Repair
-                const repairPrompt = `The following JSON is invalid. Fix it to be exactly { "action": "BUY" | "WAIT" | "SELL", "narrative": "..." } with valid JSON syntax. Return ONLY the JSON.\n\n${cleanNarrative}`;
+                const repairPrompt = `The following JSON is invalid. Fix it to be exactly { "action": "BUY" | "HOLD" | "SELL", "narrative": "..." } with valid JSON syntax. Return ONLY the JSON.\n\n${cleanNarrative}`;
                 let repaired = await provider.generateNarrative(repairPrompt, language);
                 if (repaired.endsWith(simulationText)) repaired = repaired.substring(0, repaired.length - simulationText.length);
                 repaired = repaired.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -298,7 +298,7 @@ export class LLMService {
                     JSON.parse(repaired);
                     return repaired;
                 } catch (e2) {
-                    return JSON.stringify({ action: "WAIT", narrative: "Failed to parse LLM Action Label response. Raw output: " + cleanNarrative });
+                    return JSON.stringify({ action: "HOLD", narrative: "Failed to parse LLM Action Label response. Raw output: " + cleanNarrative });
                 }
             }
         } else if (promptTemplate && promptTemplate.outputMode === 'JSON') {

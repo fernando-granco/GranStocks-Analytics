@@ -582,7 +582,7 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                         <p className="text-rose-400 text-sm mt-2 font-medium">Error: {(aiMutation.error as any).message}</p>
                                     )}
 
-                                    <div className="mt-4 flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+                                    <div className="mt-4 flex-1 overflow-y-auto pr-2 pb-6 min-h-0 space-y-4 custom-scrollbar">
                                         {generatedNarratives.length > 0 ? (
                                             generatedNarratives.map((n: any, idx) => {
                                                 let parsedAction = null;
@@ -592,6 +592,7 @@ export default function AssetDetail({ symbol, assetType, onBack }: { symbol: str
                                                     const maybeJSON = JSON.parse(n.contentText);
                                                     if (maybeJSON && maybeJSON.action && maybeJSON.narrative) {
                                                         parsedAction = maybeJSON.action.toUpperCase();
+                                                        if (parsedAction === 'WAIT') parsedAction = 'HOLD';
                                                         narrativeText = maybeJSON.narrative;
                                                     }
                                                 } catch (e) {

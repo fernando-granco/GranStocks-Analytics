@@ -5,11 +5,37 @@ import { ArrowLeft, Sparkles, AlertCircle, LineChart as ChartIcon, Briefcase, Ac
 import { usePortfolios } from '../context/PortfolioContext';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
+import { useEffect } from 'react';
+
 export default function PortfolioAnalysis() {
     const navigate = useNavigate();
     const { portfolios, selectedPortfolio, setSelectedPortfolioId } = usePortfolios();
-    const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+    const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+    const [generatedNarratives, setGeneratedNarratives] = useState<any[]>([]);
     const [timeSpan, setTimeSpan] = useState('6M');
+
+    const { data: configs } = useQuery({
+        queryKey: ['llmConfigs'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/llm');
+            if (!res.ok) return [];
+            return res.json();
+        }
+    });
+
+    useEffect(() => {
+        if (configs && configs.length > 0 && selectedProviders.length === 0) {
+            setSelectedProviders([configs[0].id]);
+        }
+    }, [configs]);
+
+    const toggleProvider = (id: string) => {
+        if (selectedProviders.includes(id)) {
+            setSelectedProviders(v => v.filter(i => i !== id));
+        } else {
+            setSelectedProviders(v => [...v, id]);
+        }
+    };
 
     const { data: analytics, isLoading } = useQuery({
         queryKey: ['portfolio-analytics', selectedPortfolio?.id, timeSpan],
@@ -29,7 +55,7 @@ export default function PortfolioAnalysis() {
             const res = await fetch(`/api/portfolio/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ portfolioId: selectedPortfolio?.id })
+                body: JSON.stringify({ portfolioId: selectedPortfolio?.id, llmConfigIds: selectedProviders })
             });
             if (!res.ok) {
                 const err = await res.json();
@@ -37,7 +63,16 @@ export default function PortfolioAnalysis() {
             }
             return res.json();
         },
-        onSuccess: (data) => setAnalysisResult(data.narrative),
+        onSuccess: (data) => {
+            if (data.narratives) {
+                setGeneratedNarratives(data.narratives);
+            } else if (data.narrative) {
+                setGeneratedNarratives([{ contentText: data.narrative }]);
+            }
+            if (data.errors?.length > 0) {
+                console.warn('[AI] Some providers failed:', data.errors);
+            }
+        },
         onError: (err: any) => alert(err.message)
     });
 
@@ -100,41 +135,76 @@ export default function PortfolioAnalysis() {
                         <span className="bg-indigo-500/10 text-indigo-400 text-[10px] px-1.5 py-0.5 rounded font-black uppercase tracking-widest border border-indigo-500/20">Base: {baseCurrency}</span>
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <select
-                        value={timeSpan}
-                        onChange={(e) => setTimeSpan(e.target.value)}
-                        className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-sm rounded-lg px-3 py-2 outline-none cursor-pointer hover:text-white transition-colors"
-                    >
-                        <option value="1M">1 Month</option>
-                        <option value="3M">3 Months</option>
-                        <option value="6M">6 Months</option>
-                        <option value="YTD">YTD</option>
-                        <option value="1Y">1 Year</option>
-                        <option value="ALL_TIME">All Time</option>
-                    </select>
-                    <button
-                        onClick={() => analyzeMutation.mutate()}
-                        disabled={analyzeMutation.isPending}
-                        className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 disabled:opacity-50 font-bold rounded-lg flex items-center gap-2 transition-colors uppercase text-xs tracking-wider h-[38px]"
-                    >
-                        <Sparkles size={16} />
-                        <span className="hidden sm:inline">{analyzeMutation.isPending ? 'Generating...' : 'Run AI Analysis'}</span>
-                    </button>
+                <div className="flex flex-col items-end gap-3">
+                    <div className="flex items-center gap-3">
+                        <select
+                            value={timeSpan}
+                            onChange={(e) => setTimeSpan(e.target.value)}
+                            className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-sm rounded-lg px-3 py-2 outline-none cursor-pointer hover:text-white transition-colors h-[38px]"
+                        >
+                            <option value="1M">1 Month</option>
+                            <option value="3M">3 Months</option>
+                            <option value="6M">6 Months</option>
+                            <option value="YTD">YTD</option>
+                            <option value="1Y">1 Year</option>
+                            <option value="ALL_TIME">All Time</option>
+                        </select>
+                        <button
+                            onClick={() => analyzeMutation.mutate()}
+                            disabled={analyzeMutation.isPending || selectedProviders.length === 0}
+                            className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 disabled:opacity-50 font-bold rounded-lg flex items-center gap-2 transition-colors uppercase text-xs tracking-wider h-[38px]"
+                        >
+                            <Sparkles size={16} />
+                            <span className="hidden sm:inline">{analyzeMutation.isPending ? 'Generating...' : 'Run AI Analysis'}</span>
+                        </button>
+                    </div>
+
+                    {configs && configs.length > 0 && (
+                        <div className="flex gap-2">
+                            {configs.map((cfg: any) => (
+                                <button
+                                    key={cfg.id}
+                                    onClick={() => toggleProvider(cfg.id)}
+                                    className={`px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${selectedProviders.includes(cfg.id)
+                                        ? "bg-indigo-500 border-indigo-500 text-white"
+                                        : "bg-neutral-900 border-neutral-700 text-neutral-400 hover:border-neutral-500"
+                                        }`}
+                                >
+                                    {cfg.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {analysisResult && (
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500 shadow-xl shadow-amber-500/5">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <Sparkles size={64} className="text-amber-500" />
-                    </div>
-                    <h2 className="text-lg font-bold text-amber-500 mb-3 flex items-center gap-2">
-                        <Sparkles size={18} /> AI Portfolio Analysis
-                    </h2>
-                    <div className="text-neutral-300 whitespace-pre-wrap leading-relaxed text-sm format-markdown">
-                        {analysisResult}
-                    </div>
+            {generatedNarratives.length > 0 && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                    {generatedNarratives.map((n: any, idx) => {
+                        let text = n.contentText || '';
+                        let isJson = false;
+                        try {
+                            const parsed = JSON.parse(text);
+                            if (parsed && typeof parsed === 'object') {
+                                isJson = true;
+                                text = JSON.stringify(parsed, null, 2);
+                            }
+                        } catch { }
+
+                        return (
+                            <div key={idx} className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 relative overflow-hidden shadow-xl shadow-amber-500/5">
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    <Sparkles size={64} className="text-amber-500" />
+                                </div>
+                                <h2 className="text-lg font-bold text-amber-500 mb-3 flex items-center gap-2 pb-2 border-b border-amber-500/20">
+                                    <Sparkles size={18} /> {n.providerUsed || 'AI'} ({n.modelUsed || 'Model'})
+                                </h2>
+                                <div className={`text-neutral-300 whitespace-pre-wrap leading-relaxed ${isJson ? 'text-xs font-mono bg-black/40 p-4 rounded-lg' : 'text-sm format-markdown'}`}>
+                                    {text}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 

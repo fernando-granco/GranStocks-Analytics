@@ -108,9 +108,28 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: any }) {
                     <FolderDot className="h-8 w-8 text-neutral-600 mb-2" />
                     <h3 className="text-sm font-medium text-neutral-300">Portfolio Empty</h3>
                     <p className="text-xs text-neutral-500 mt-1 mb-4">Add assets to start tracking.</p>
-                    <button onClick={() => setIsExpanded(!isExpanded)} className="px-5 py-2 text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition-colors flex items-center gap-2">
-                        {isExpanded ? 'Close' : 'Add Position'}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setIsExpanded(!isExpanded)} className="px-5 py-2 text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition-colors flex items-center gap-2">
+                            {isExpanded ? 'Close' : 'Add Position'}
+                        </button>
+                        <button onClick={async () => {
+                            if (window.confirm('Are you sure you want to delete this empty portfolio?')) {
+                                try {
+                                    const res = await fetch(`/api/portfolio/${portfolio.id}`, { method: 'DELETE' });
+                                    if (res.ok) {
+                                        window.location.reload();
+                                    } else {
+                                        const data = await res.json();
+                                        alert(data.error || 'Failed to delete portfolio');
+                                    }
+                                } catch (e) {
+                                    console.error(e);
+                                }
+                            }
+                        }} className="px-4 py-2 text-sm text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 font-medium rounded-lg transition-colors">
+                            Delete Portfolio
+                        </button>
+                    </div>
                     {isExpanded && (
                         <div className="w-full mt-6 text-left animate-in fade-in zoom-in-95 duration-200">
                             <PortfolioTracker portfolio={portfolio} onPositionsUpdated={fetchPositions} />

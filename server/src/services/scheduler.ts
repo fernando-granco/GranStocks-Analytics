@@ -180,6 +180,31 @@ export class DailyJobService {
         }, { timezone: activeTz });
         console.log(`Hourly Screener Refresh Scheduled for 0 * * * * ${activeTz}`);
 
+        // 15-Minute Periodic Updates
+        let is15MinJobRunning = false;
+        cron.schedule('*/15 * * * *', async () => {
+            if (is15MinJobRunning) {
+                console.log('[Scheduler] 15-minute job skipped (already running).');
+                return;
+            }
+            is15MinJobRunning = true;
+            try {
+                // Determine if we should run updates (e.g. during market hours)
+                // We'll leave the core loop for the user to inject logic.
+                console.log('[Scheduler] Running 15-minute periodic updates...');
+
+                // --- Insert 15-minute update logic here ---
+                // e.g. await MarketData.refreshTrackedAssets();
+
+                console.log('[Scheduler] 15-minute periodic updates completed.');
+            } catch (e) {
+                console.error('[Scheduler] 15-minute periodic updates failed:', e);
+            } finally {
+                is15MinJobRunning = false;
+            }
+        });
+        console.log(`15-Minute Periodic Job Scheduled (*/15 * * * *)`);
+
         // Monthly demo snapshot rebuild disabled (demo is frozen on Jan 1, 2026)
         // cron.schedule('0 0 1 * *', () => {
         //     console.log('Running Monthly Demo Snapshot Rebuild...');

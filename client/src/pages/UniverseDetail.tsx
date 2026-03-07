@@ -12,8 +12,32 @@ export default function UniverseDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { mode } = usePreferences();
-    const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+    const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+    const [generatedNarratives, setGeneratedNarratives] = useState<any[]>([]);
     const [timeSpan, setTimeSpan] = useState('1Y');
+
+    const { data: configs } = useQuery({
+        queryKey: ['llmConfigs'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/llm');
+            if (!res.ok) return [];
+            return res.json();
+        }
+    });
+
+    useEffect(() => {
+        if (configs && configs.length > 0 && selectedProviders.length === 0) {
+            setSelectedProviders([configs[0].id]);
+        }
+    }, [configs]);
+
+    const toggleProvider = (id: string) => {
+        if (selectedProviders.includes(id)) {
+            setSelectedProviders(v => v.filter(i => i !== id));
+        } else {
+            setSelectedProviders(v => [...v, id]);
+        }
+    };
 
     const queryClient = useQueryClient();
 
@@ -98,14 +122,27 @@ export default function UniverseDetail() {
 
     const analyzeMutation = useMutation({
         mutationFn: async () => {
-            const res = await fetch(`/api/universes/${id}/analyze`, { method: 'POST' });
+            const res = await fetch(`/api/universes/${id}/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ llmConfigIds: selectedProviders })
+            });
             if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || 'Failed to analyze universe');
             }
             return res.json();
         },
-        onSuccess: (data) => setAnalysisResult(data.narrative),
+        onSuccess: (data) => {
+            if (data.narratives) {
+                setGeneratedNarratives(data.narratives);
+            } else if (data.narrative) {
+                setGeneratedNarratives([{ contentText: data.narrative }]);
+            }
+            if (data.errors?.length > 0) {
+                console.warn('[AI] Some providers failed:', data.errors);
+            }
+        },
         onError: (err: any) => alert(err.message)
     });
 
@@ -143,28 +180,62 @@ export default function UniverseDetail() {
                     <p className="text-neutral-500">Custom Universe &bull; {items.length} Assets</p>
                 </div>
                 {mode === 'ADVANCED' && (
-                    <button
-                        onClick={() => analyzeMutation.mutate()}
-                        disabled={analyzeMutation.isPending || items.length === 0}
-                        className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 disabled:opacity-50 font-medium rounded-lg flex items-center gap-2 transition-colors"
-                    >
-                        <Sparkles size={16} />
-                        {analyzeMutation.isPending ? 'Analyzing Group...' : 'Run Group AI Analysis'}
-                    </button>
+                    <div className="flex flex-col items-end gap-2">
+                        {configs && configs.length > 0 && (
+                            <div className="flex gap-2">
+                                {configs.map((cfg: any) => (
+                                    <button
+                                        key={cfg.id}
+                                        onClick={() => toggleProvider(cfg.id)}
+                                        className={`px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${selectedProviders.includes(cfg.id)
+                                            ? "bg-indigo-500 border-indigo-500 text-white"
+                                            : "bg-neutral-900 border-neutral-700 text-neutral-400 hover:border-neutral-500"
+                                            }`}
+                                    >
+                                        {cfg.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <button
+                            onClick={() => analyzeMutation.mutate()}
+                            disabled={analyzeMutation.isPending || items.length === 0 || selectedProviders.length === 0}
+                            className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 disabled:opacity-50 font-medium rounded-lg flex items-center gap-2 transition-colors"
+                        >
+                            <Sparkles size={16} />
+                            {analyzeMutation.isPending ? 'Analyzing Group...' : 'Run Group AI Analysis'}
+                        </button>
+                    </div>
                 )}
             </div>
 
-            {analysisResult && (
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <Sparkles size={64} className="text-amber-500" />
-                    </div>
-                    <h2 className="text-lg font-bold text-amber-500 mb-3 flex items-center gap-2">
-                        <Sparkles size={18} /> AI Group Analysis
-                    </h2>
-                    <div className="text-neutral-300 whitespace-pre-wrap leading-relaxed text-sm format-markdown">
-                        {analysisResult}
-                    </div>
+            {generatedNarratives.length > 0 && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                    {generatedNarratives.map((n: any, idx) => {
+                        let text = n.contentText || '';
+                        let isJson = false;
+                        try {
+                            const parsed = JSON.parse(text);
+                            if (parsed && typeof parsed === 'object') {
+                                isJson = true;
+                                text = JSON.stringify(parsed, null, 2);
+                            }
+                        } catch { }
+
+                        return (
+                            <div key={idx} className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 relative overflow-hidden shadow-xl shadow-amber-500/5">
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    <Sparkles size={64} className="text-amber-500" />
+                                </div>
+                                <h2 className="text-lg font-bold text-amber-500 mb-3 flex items-center gap-2 pb-2 border-b border-amber-500/20">
+                                    <Sparkles size={18} /> {n.providerUsed || 'AI'} ({n.modelUsed || 'Model'})
+                                </h2>
+                                <div className={`text-neutral-300 whitespace-pre-wrap leading-relaxed ${isJson ? 'text-xs font-mono bg-black/40 p-4 rounded-lg' : 'text-sm format-markdown'}`}>
+                                    {text}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 

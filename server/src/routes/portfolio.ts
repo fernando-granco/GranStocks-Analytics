@@ -36,8 +36,12 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const authUser = req.user as { id: string };
         const { id } = req.params as { id: string };
 
-        // Delete positions first (or Cascade if DB supports, but SQLite via Prisma needs manual or schema support)
-        await prisma.portfolioPosition.deleteMany({ where: { portfolioId: id, userId: authUser.id } });
+        // Check if there are any positions
+        const positionCount = await prisma.portfolioPosition.count({ where: { portfolioId: id, userId: authUser.id } });
+        if (positionCount > 0) {
+            return reply.status(400).send({ error: 'Portfolio must be empty before deletion.' });
+        }
+
         await prisma.portfolio.delete({ where: { id, userId: authUser.id } });
 
         return { success: true };
@@ -263,11 +267,23 @@ export default async function portfolioRoutes(server: FastifyInstance) {
 
     // AI Analysis
     server.post('/analyze', { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } }, async (req: FastifyRequest, reply: FastifyReply) => {
-        const { portfolioId } = req.body as { portfolioId?: string };
+        const { portfolioId, llmConfigIds } = req.body as { portfolioId?: string, llmConfigIds?: string[] };
         const authUser = req.user as { id: string };
 
-        const config = await prisma.userLLMConfig.findFirst({ where: { userId: authUser.id } });
-        if (!config) return reply.status(400).send({ error: 'No active AI Provider configured.' });
+        let ownedConfigs: any[] = [];
+        if (llmConfigIds && llmConfigIds.length > 0) {
+            ownedConfigs = await prisma.userLLMConfig.findMany({
+                where: { id: { in: llmConfigIds }, userId: authUser.id }
+            });
+            if (ownedConfigs.length !== llmConfigIds.length) {
+                return reply.status(403).send({ error: 'One or more LLM Configurations are unauthorized or not found.' });
+            }
+        } else {
+            const config = await prisma.userLLMConfig.findFirst({ where: { userId: authUser.id } });
+            if (config) ownedConfigs.push(config);
+        }
+
+        if (ownedConfigs.length === 0) return reply.status(400).send({ error: 'No active AI Provider configured.' });
 
         const where: any = { userId: authUser.id };
         if (portfolioId) where.portfolioId = portfolioId;
@@ -304,7 +320,35 @@ export default async function portfolioRoutes(server: FastifyInstance) {
 
         const { LLMService } = await import('../services/llm');
         let language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
-        const narrative = await LLMService.generateNarrative(config.id, authUser.id, `Portfolio`, date, promptJson, 'PORTFOLIO', language);
-        return { narrative };
+
+        const results: any[] = [];
+        const errors: string[] = [];
+
+        for (const config of ownedConfigs) {
+            try {
+                const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, `Portfolio`, date, promptJson, 'PORTFOLIO', language);
+
+                const narrative = await prisma.aiNarrative.create({
+                    data: {
+                        userId: authUser.id,
+                        symbol: `Portfolio:${portfolioId || 'All'}`,
+                        date,
+                        llmConfigId: config.id,
+                        contentText: narrativeText,
+                        providerUsed: config.provider,
+                        modelUsed: config.model
+                    }
+                });
+                results.push(narrative);
+            } catch (e: any) {
+                errors.push(`Provider error for ${config.name}: ${e.message || 'Unknown LLM error'}`);
+            }
+        }
+
+        if (results.length === 0 && errors.length > 0) {
+            return reply.status(422).send({ error: errors.join('\n') });
+        }
+
+        return { narrative: results.length > 0 ? results[0].contentText : null, narratives: results, errors };
     });
 }

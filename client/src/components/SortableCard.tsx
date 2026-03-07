@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../utils';
 import { Star, GripVertical, Database } from 'lucide-react';
 import PriceDisplay from './PriceDisplay';
+import { inferCurrency } from '../utils/currency';
 
 export function SortableCard({ item, onClick, onUntrack }: { item: any; onClick: () => void; onUntrack: (symbol: string) => void }) {
     const {
@@ -67,8 +68,8 @@ export function SortableCard({ item, onClick, onUntrack }: { item: any; onClick:
 
             {item.indicators ? (() => {
                 const ind = JSON.parse(item.indicators.indicatorsJson);
-                const currency = item.asset?.currency || 'USD';
-                const isNonUSD = currency !== 'USD';
+                const { currency, isUsdNative } = inferCurrency(item.symbol, item.assetType);
+                const isNonUSD = !isUsdNative;
 
                 return (
                     <div className="space-y-4">

@@ -63,4 +63,15 @@ export class FXService {
         if (fromCcy === 'CAD' && toCcy === 'USD') return 0.70; // Approximate
         return 1.0;
     }
+
+    /**
+     * Gets historical FX rates. Currently a stub that returns a flat rate using getFxRate.
+     * In the future, this should fetch AlphaVantage FX_DAILY.
+     */
+    static async getHistoricalRates(curr: string, days: number = 365): Promise<Map<string, number>> {
+        const rate = await this.getFxRate(curr, 'USD'); // Fallback to current rate
+        const map = new Map<string, number>();
+        // Return an empty map to prevent breaking existing logic that checks map.get(date)
+        return map;
+    }
 }

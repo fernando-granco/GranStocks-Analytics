@@ -130,7 +130,7 @@ export class GroupAnalysisEngine {
             const latestPriceLocal = rawC.length > 0 ? rawC[rawC.length - 1] : (asset.averageCost || 0);
 
             // Current rate normalization: Local -> Base
-            const rateLocalToBase = await FXService.getCrossRate(asset.currency || 'USD', baseCurrency);
+            const rateLocalToBase = await FXService.getFxRate(asset.currency || 'USD', baseCurrency);
 
             const latestPriceBase = latestPriceLocal * rateLocalToBase;
             const qty = asset.quantity || 1;

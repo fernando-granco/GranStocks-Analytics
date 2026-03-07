@@ -85,7 +85,7 @@ export default async function portfolioRoutes(server: FastifyInstance) {
             }
 
             // Convert everything to portfolio's base currency
-            const rateAssetToBase = await FXService.getCrossRate(assetCurrency, baseCurrency);
+            const rateAssetToBase = await FXService.getFxRate(assetCurrency, baseCurrency);
 
             const currentPriceInBase = currentPrice * rateAssetToBase;
             const costBasisInBase = (pos.averageCost * pos.quantity) * rateAssetToBase;

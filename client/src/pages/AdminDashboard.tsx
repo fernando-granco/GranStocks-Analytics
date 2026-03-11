@@ -35,7 +35,7 @@ export default function AdminDashboard() {
         queryKey: ['admin-jobs'],
         queryFn: async () => {
             const res = await fetch('/api/admin/jobs');
-            if (!res.ok) throw new Error('Failed to fetch jobs');
+            if (!res.ok) throw new Error('Falha ao buscar jobs');
             return res.json();
         },
         enabled: activeTab === 'JOBS',
@@ -51,7 +51,7 @@ export default function AdminDashboard() {
         queryKey: ['admin-cache-health'],
         queryFn: async () => {
             const res = await fetch('/api/admin/cache-health');
-            if (!res.ok) throw new Error('Failed to fetch cache health');
+            if (!res.ok) throw new Error('Falha ao buscar saúde do cache');
             return res.json();
         },
         enabled: activeTab === 'CACHE'
@@ -61,7 +61,7 @@ export default function AdminDashboard() {
     const runDailyMutation = useMutation({
         mutationFn: async () => {
             const res = await fetch('/api/admin/run-daily', { method: 'POST' });
-            if (!res.ok) throw new Error('Failed to trigger daily job');
+            if (!res.ok) throw new Error('Falha ao executar job diário');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin-jobs'] });
@@ -84,7 +84,7 @@ export default function AdminDashboard() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin-jobs'] });
-            toast.success('Screener job triggered');
+            toast.success('Job do Screener disparado');
         },
         onError: (e: any) => toast.error(e.message)
     });
@@ -209,7 +209,7 @@ export default function AdminDashboard() {
 
                         {/* Job State Table */}
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                            <h4 className="text-sm font-semibold text-neutral-400 mb-4">Screener Job History</h4>
+                            <h4 className="text-sm font-semibold text-neutral-400 mb-4">Histórico de jobs do Screener</h4>
                             {(!jobsData?.jobs || jobsData.jobs.length === 0) ? (
                                 <p className="text-neutral-600 text-sm text-center py-8">No jobs have been run yet.</p>
                             ) : (
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
                                     <table className="w-full text-sm">
                                         <thead>
                                             <tr className="text-neutral-500 border-b border-neutral-800">
-                                                <th className="text-left py-2 pr-4 font-medium">Universe</th>
+                                                <th className="text-left py-2 pr-4 font-medium">Universo</th>
                                                 <th className="text-left py-2 pr-4 font-medium">Status</th>
                                                 <th className="text-left py-2 pr-4 font-medium">Progress</th>
                                                 <th className="text-left py-2 pr-4 font-medium">Last Run</th>

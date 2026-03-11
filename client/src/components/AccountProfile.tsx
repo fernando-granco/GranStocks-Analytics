@@ -23,7 +23,7 @@ export function AccountProfile() {
         queryKey: ['userProfile'],
         queryFn: async () => {
             const res = await fetch('/api/user/profile');
-            if (!res.ok) throw new Error('Failed to load profile');
+            if (!res.ok) throw new Error('Falha ao carregar perfil.');
             return res.json();
         }
     });
@@ -45,7 +45,7 @@ export function AccountProfile() {
             });
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || 'Failed to update profile');
+                throw new Error(err.error || 'Falha ao atualizar perfil.');
             }
         },
         onSuccess: () => {
@@ -58,7 +58,7 @@ export function AccountProfile() {
     const updatePassword = useMutation({
         mutationFn: async () => {
             if (newPassword.length < 10) {
-                throw new Error("New password must be at least 10 characters long.");
+                throw new Error('A nova senha precisa ter no mínimo 10 caracteres.');
             }
             const res = await fetch('/api/user/change-password', {
                 method: 'POST',
@@ -67,11 +67,11 @@ export function AccountProfile() {
             });
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || 'Failed to update password');
+                throw new Error(err.error || 'Falha ao atualizar senha.');
             }
         },
         onSuccess: () => {
-            alert('Password successfully changed');
+            alert('Senha alterada com sucesso.');
             setNewPassword('');
             setCurrentPassword('');
         },
@@ -81,16 +81,16 @@ export function AccountProfile() {
     return (
         <div className="space-y-6">
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                <h3 className="text-xl font-semibold mb-6 flex items-center gap-2"><User size={20} className="text-indigo-400" /> Account Profile</h3>
+                <h3 className="text-xl font-semibold mb-6 flex items-center gap-2"><User size={20} className="text-indigo-400" /> Perfil da conta</h3>
 
                 <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Screen Name</label>
-                        <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" placeholder="Display Name" />
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Nome de exibição</label>
+                        <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" placeholder="Nome de exibição" />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Display Timezone</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Fuso horário</label>
                         <Select
                             options={TIMEZONES}
                             value={TIMEZONES.find((t: any) => t.value === timezone)}
@@ -122,36 +122,36 @@ export function AccountProfile() {
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Email Address</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Endereço de e-mail</label>
                         <div className="flex gap-4">
                             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="flex-1 bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" />
-                            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Confirm current password to change email" className="flex-1 bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" />
+                            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Confirme a senha atual para alterar o e-mail" className="flex-1 bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" />
                         </div>
                     </div>
                 </div>
 
                 <div className="mt-6 flex justify-end">
                     <button onClick={() => updateProfile.mutate()} disabled={updateProfile.isPending} className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm font-medium transition flex-shrink-0">
-                        <Save size={16} /> Save Profile
+                        <Save size={16} /> Salvar perfil
                     </button>
                 </div>
             </div>
 
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                <h3 className="text-xl font-semibold mb-6 flex items-center gap-2"><Lock size={20} className="text-orange-400" /> Change Password</h3>
+                <h3 className="text-xl font-semibold mb-6 flex items-center gap-2"><Lock size={20} className="text-orange-400" /> Alterar senha</h3>
                 <div className="grid gap-6 md:grid-cols-2">
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Current Password</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Senha atual</label>
                         <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">New Password</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Nova senha</label>
                         <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full bg-black border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500" />
                     </div>
                 </div>
                 <div className="mt-6 flex justify-end">
                     <button onClick={() => updatePassword.mutate()} disabled={updatePassword.isPending} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 px-4 py-2 rounded-lg text-sm font-medium transition flex-shrink-0">
-                        <Save size={16} /> Update Password
+                        <Save size={16} /> Atualizar senha
                     </button>
                 </div>
             </div>
@@ -168,7 +168,7 @@ export function AccountProfile() {
                     </label>
 
                     <label className="flex items-center justify-between cursor-pointer p-3 bg-black border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors">
-                        <span className="text-sm font-medium text-neutral-300">{t('settings.display.hide_universes', 'Hide Custom Universes if empty')}</span>
+                        <span className="text-sm font-medium text-neutral-300">{t('settings.display.hide_universes', 'Hide Custom Universos if empty')}</span>
                         <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors ${hideEmptyCustomUniverses ? 'bg-indigo-500' : 'bg-neutral-700'}`}>
                             <div className={`w-4 h-4 rounded-full bg-white transition-transform ${hideEmptyCustomUniverses ? 'translate-x-4' : 'translate-x-0'}`} />
                         </div>

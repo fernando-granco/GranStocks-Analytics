@@ -119,7 +119,7 @@ export default async function adminRoutes(server: FastifyInstance) {
         const schema = z.object({ newPassword: z.string().min(10) });
         const { newPassword } = schema.parse(req.body);
 
-        const passwordHash = await bcrypt.hash(newPassword, 10);
+        const passwordHash = await bcrypt.hash(newPassword, 12);
         await prisma.user.update({
             where: { id },
             data: { passwordHash, mustChangePassword: true }

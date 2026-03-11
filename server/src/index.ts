@@ -27,10 +27,10 @@ async function start() {
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Vite requires eval for dev, adjust in hard prod
+                scriptSrc: ["'self'", "'unsafe-inline'"],
                 styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind requires inline sometimes
                 imgSrc: ["'self'", "data:", "https:"],
-                connectSrc: ["'self'", process.env.APP_ORIGIN || "*"]
+                connectSrc: ["'self'", process.env.APP_ORIGIN || "'self'"]
             }
         },
         global: true

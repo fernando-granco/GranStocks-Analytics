@@ -3,6 +3,39 @@ import { prisma } from '../services/cache';
 import { z } from 'zod';
 import { MarketData } from '../services/market-data';
 
+type PortfolioRange = '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL_TIME';
+
+function getRangeDays(range: PortfolioRange): number {
+    switch (range) {
+        case '1M':
+            return 30;
+        case '3M':
+            return 90;
+        case '6M':
+            return 180;
+        case '1Y':
+            return 365;
+        case 'YTD': {
+            const now = new Date();
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            return Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 3600 * 24));
+        }
+        case 'ALL_TIME':
+        default:
+            return 365 * 5;
+    }
+}
+
+async function getBaseCurrencyForPortfolio(userId: string, portfolioId?: string): Promise<string> {
+    if (!portfolioId) return 'USD';
+
+    const portfolio = await prisma.portfolio.findFirst({
+        where: { id: portfolioId, userId }
+    });
+
+    return portfolio?.baseCurrency || 'USD';
+}
+
 export default async function portfolioRoutes(server: FastifyInstance) {
     server.addHook('preValidation', server.authenticate);
 
@@ -42,7 +75,8 @@ export default async function portfolioRoutes(server: FastifyInstance) {
             return reply.status(400).send({ error: 'Portfolio must be empty before deletion.' });
         }
 
-        await prisma.portfolio.delete({ where: { id, userId: authUser.id } });
+        const deleted = await prisma.portfolio.deleteMany({ where: { id, userId: authUser.id } });
+        if (deleted.count === 0) return reply.status(404).send({ error: 'Portfolio not found' });
 
         return { success: true };
     });
@@ -62,12 +96,7 @@ export default async function portfolioRoutes(server: FastifyInstance) {
             orderBy: { acquiredAt: 'desc' }
         });
 
-        // Get portfolio base currency
-        let baseCurrency = 'USD';
-        if (portfolioId) {
-            const pArr = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-            if (pArr) baseCurrency = pArr.baseCurrency;
-        }
+        const baseCurrency = await getBaseCurrencyForPortfolio(authUser.id, portfolioId);
 
         const { FXService } = await import('../services/fx');
 
@@ -129,7 +158,7 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const data = schema.parse(req.body);
 
         // Verify portfolio ownership
-        const portfolio = await prisma.portfolio.findUnique({
+        const portfolio = await prisma.portfolio.findFirst({
             where: { id: data.portfolioId, userId: authUser.id }
         });
         if (!portfolio) return reply.status(404).send({ error: 'Portfolio not found' });
@@ -150,9 +179,10 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const authUser = req.user as { id: string };
         const { id } = req.params as { id: string };
 
-        await prisma.portfolioPosition.delete({
+        const deleted = await prisma.portfolioPosition.deleteMany({
             where: { id, userId: authUser.id }
         });
+        if (deleted.count === 0) return reply.status(404).send({ error: 'Position not found' });
 
         return { success: true };
     });
@@ -174,22 +204,8 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const positions = await prisma.portfolioPosition.findMany({ where });
         if (positions.length === 0) return [];
 
-        let baseCurrency = 'USD';
-        if (portfolioId) {
-            const p = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-            if (p) baseCurrency = p.baseCurrency;
-        }
-
-        let days = 365 * 5;
-        if (range === '1M') days = 30;
-        else if (range === '3M') days = 90;
-        else if (range === '6M') days = 180;
-        else if (range === '1Y') days = 365;
-        else if (range === 'YTD') {
-            const now = new Date();
-            const startOfYear = new Date(now.getFullYear(), 0, 1);
-            days = Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 3600 * 24));
-        }
+        const baseCurrency = await getBaseCurrencyForPortfolio(authUser.id, portfolioId);
+        const days = getRangeDays(range);
 
         const { PriceHistoryService } = await import('../services/price-history');
         const { GroupAnalysisEngine } = await import('../services/group-analysis');
@@ -229,22 +245,8 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const positions = await prisma.portfolioPosition.findMany({ where });
         if (positions.length === 0) return reply.send(null);
 
-        let baseCurrency = 'USD';
-        if (portfolioId) {
-            const p = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-            if (p) baseCurrency = p.baseCurrency;
-        }
-
-        let days = 365 * 5;
-        if (range === '1M') days = 30;
-        else if (range === '3M') days = 90;
-        else if (range === '6M') days = 180;
-        else if (range === '1Y') days = 365;
-        else if (range === 'YTD') {
-            const now = new Date();
-            const startOfYear = new Date(now.getFullYear(), 0, 1);
-            days = Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 3600 * 24));
-        }
+        const baseCurrency = await getBaseCurrencyForPortfolio(authUser.id, portfolioId);
+        const days = getRangeDays(range);
 
         const { PriceHistoryService } = await import('../services/price-history');
         const { GroupAnalysisEngine } = await import('../services/group-analysis');
@@ -291,7 +293,6 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const positions = await prisma.portfolioPosition.findMany({ where });
         if (positions.length === 0) return reply.status(400).send({ error: 'Portfolio is empty.' });
 
-        const symbols = positions.map(p => p.symbol);
         const { GroupAnalysisEngine } = await import('../services/group-analysis');
         const { PriceHistoryService } = await import('../services/price-history');
 
@@ -319,14 +320,14 @@ export default async function portfolioRoutes(server: FastifyInstance) {
         const date = new Date().toISOString().split('T')[0];
 
         const { LLMService } = await import('../services/llm');
-        let language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
+        const language = (req.headers['accept-language'] as string)?.split(',')[0] || 'en';
 
         const results: any[] = [];
         const errors: string[] = [];
 
         for (const config of ownedConfigs) {
             try {
-                const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, `Portfolio`, date, promptJson, 'PORTFOLIO', language);
+                const narrativeText = await LLMService.generateNarrative(config.id, authUser.id, 'Portfolio', date, promptJson, 'PORTFOLIO', language);
 
                 const narrative = await prisma.aiNarrative.create({
                     data: {

@@ -7,8 +7,11 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy } from '@dnd-kit/sortable';
 import { SortableCard } from '../components/SortableCard';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useTranslation } from 'react-i18next';
 
 export default function UniverseDetail() {
+    const { i18n } = useTranslation();
+    const tr = (en: string, pt: string) => (i18n.language === 'pt-BR' ? pt : en);
     const { id } = useParams();
     const navigate = useNavigate();
     const { mode } = usePreferences();
@@ -45,7 +48,7 @@ export default function UniverseDetail() {
         queryKey: ['universe-overview', id],
         queryFn: async () => {
             const res = await fetch(`/api/universes/${id}/overview`);
-            if (!res.ok) throw new Error('Failed to load overview');
+            if (!res.ok) throw new Error(tr('Failed to load universe overview', 'Falha ao carregar visão geral'));
             return res.json();
         }
     });
@@ -54,7 +57,7 @@ export default function UniverseDetail() {
         queryKey: ['universe-resolve', id],
         queryFn: async () => {
             const res = await fetch(`/api/universes/${id}/resolve`);
-            if (!res.ok) throw new Error('Failed to resolve universe');
+            if (!res.ok) throw new Error(tr('Failed to resolve universe', 'Falha ao resolver universo'));
             return res.json();
         }
     });
@@ -74,7 +77,7 @@ export default function UniverseDetail() {
         '6M': '6-Month',
         'YTD': 'YTD',
         '1Y': '1-Year',
-        'ALL_TIME': 'All Time'
+        'ALL_TIME': tr('All time', 'Todo o período')
     }[timeSpan] || '1-Year';
 
     const [items, setItems] = useState<any[]>([]);
@@ -129,7 +132,7 @@ export default function UniverseDetail() {
             });
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || 'Failed to analyze universe');
+                throw new Error(err.error || tr('Failed to analyze universe', 'Falha ao analisar universo'));
             }
             return res.json();
         },
@@ -146,7 +149,7 @@ export default function UniverseDetail() {
         onError: (err: any) => alert(err.message)
     });
 
-    if (isLoading || analyticsLoading) return <div className="p-8 text-neutral-500 animate-pulse text-center">Loading universe data...</div>;
+    if (isLoading || analyticsLoading) return <div className="p-8 text-neutral-500 animate-pulse text-center">{tr('Loading universe data...','Carregando dados do universo...')}</div>;
 
     const universe = resolveData?.universe;
 
@@ -154,12 +157,12 @@ export default function UniverseDetail() {
         return (
             <div className="space-y-6 max-w-7xl mx-auto">
                 <button onClick={() => navigate('/app')} className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 mb-4">
-                    <ArrowLeft size={16} /> Back to Dashboard
+                    <ArrowLeft size={16} /> {tr('Back to Dashboard', 'Voltar ao Painel')}
                 </button>
                 <div className="p-12 border border-dashed border-neutral-800 rounded-2xl text-center bg-neutral-900/20 mt-8">
                     <AlertCircle className="mx-auto h-12 w-12 text-neutral-600 mb-4" />
-                    <h3 className="text-lg font-medium text-neutral-300">Universe not found</h3>
-                    <p className="text-neutral-500 mt-1">The specified universe could not be loaded or does not exist.</p>
+                    <h3 className="text-lg font-medium text-neutral-300">{tr('Universe not found', 'Universo não encontrado')}</h3>
+                    <p className="text-neutral-500 mt-1">{tr('The requested universe could not be loaded or does not exist.', 'O universo informado não pôde ser carregado ou não existe.')}</p>
                 </div>
             </div>
         );
@@ -168,7 +171,7 @@ export default function UniverseDetail() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <button onClick={() => navigate('/app')} className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 mb-4">
-                <ArrowLeft size={16} /> Back to Dashboard
+                <ArrowLeft size={16} /> {tr('Back to Dashboard', 'Voltar ao Painel')}
             </button>
 
             <div className="flex justify-between items-start">
@@ -177,7 +180,7 @@ export default function UniverseDetail() {
                         <Blocks className="text-indigo-500" />
                         {universe?.name}
                     </h1>
-                    <p className="text-neutral-500">Custom Universe &bull; {items.length} Assets</p>
+                    <p className="text-neutral-500">{tr('Custom Universe', 'Universo personalizado')} &bull; {items.length} {tr('assets', 'ativos')}</p>
                 </div>
                 {mode === 'ADVANCED' && (
                     <div className="flex flex-col items-end gap-2">
@@ -203,7 +206,7 @@ export default function UniverseDetail() {
                             className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 disabled:opacity-50 font-medium rounded-lg flex items-center gap-2 transition-colors"
                         >
                             <Sparkles size={16} />
-                            {analyzeMutation.isPending ? 'Analyzing Group...' : 'Run Group AI Analysis'}
+                            {analyzeMutation.isPending ? tr('Analyzing group...', 'Analisando grupo...') : tr('Run AI Group Analysis', 'Executar análise de IA do grupo')}
                         </button>
                     </div>
                 )}
@@ -230,7 +233,7 @@ export default function UniverseDetail() {
                                 </div>
                                 <h2 className="text-lg font-bold text-amber-500 mb-3 flex items-center justify-between pb-2 border-b border-amber-500/20">
                                     <span className="flex items-center gap-2">
-                                        <Sparkles size={18} /> {n.providerUsed || 'AI'} ({n.modelUsed || 'Model'})
+                                        <Sparkles size={18} /> {n.providerUsed || tr('AI', 'IA')} ({n.modelUsed || tr('Model', 'Modelo')})
                                     </span>
                                     {isJson && parsedData?.action && (
                                         <span className={`text-xs ml-3 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${parsedData.action === 'BUY' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : parsedData.action === 'SELL' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
@@ -251,37 +254,37 @@ export default function UniverseDetail() {
                 <>
                     {/* Quantitative Summary Cards */}
                     <div className="flex justify-between items-center mb-2 mt-8">
-                        <h2 className="text-xl font-bold tracking-tight">Group Analytics</h2>
+                        <h2 className="text-xl font-bold tracking-tight">{tr('Group Analysis', 'Análise do grupo')}</h2>
                         <select
                             value={timeSpan}
                             onChange={(e) => setTimeSpan(e.target.value)}
                             className="bg-neutral-900 border border-neutral-700 text-neutral-300 text-sm rounded-lg px-3 py-1.5 outline-none cursor-pointer hover:text-white transition-colors"
                         >
-                            <option value="1M">1 Month</option>
-                            <option value="3M">3 Months</option>
-                            <option value="6M">6 Months</option>
+                            <option value="1M">{tr('1 month', '1 mês')}</option>
+                            <option value="3M">{tr('3 months', '3 meses')}</option>
+                            <option value="6M">{tr('6 months', '6 meses')}</option>
                             <option value="YTD">YTD</option>
-                            <option value="1Y">1 Year</option>
-                            <option value="ALL_TIME">All Time</option>
+                            <option value="1Y">{tr('1 year', '1 ano')}</option>
+                            <option value="ALL_TIME">{tr('All time', 'Todo o período')}</option>
                         </select>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><Activity size={14} /> {timeSpanLabel} Return</div>
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><Activity size={14} /> {timeSpanLabel} {tr('Return', 'Retorno')}</div>
                             <div className={`text-2xl font-bold tracking-tight ${analytics.summary.pnlPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                 {analytics.summary.pnlPercent > 0 ? '+' : ''}{analytics.summary.pnlPercent.toFixed(2)}%
                             </div>
                         </div>
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><ShieldAlert size={14} /> Volatility (Ann.)</div>
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><ShieldAlert size={14} /> {tr('Volatility (annualized)', 'Volatilidade (anual)')}</div>
                             <div className="text-2xl font-bold tracking-tight text-white">{(analytics.risk.volatility * 100).toFixed(2)}%</div>
                         </div>
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><ChartIcon size={14} /> Max Drawdown</div>
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><ChartIcon size={14} /> {tr('Max drawdown', 'Drawdown máximo')}</div>
                             <div className="text-2xl font-bold tracking-tight text-rose-500">-{Math.abs(analytics.risk.maxDrawdown).toFixed(2)}%</div>
                         </div>
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-5">
-                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><LayoutGrid size={14} /> Breadth (Above 50 MA)</div>
+                            <div className="text-sm text-neutral-500 mb-1 flex items-center gap-2"><LayoutGrid size={14} /> {tr('Breadth (above 50 MA)', 'Amplitude (acima da MM 50)')}</div>
                             <div className="text-2xl font-bold tracking-tight text-white">{(analytics.breadth.aboveSma50).toFixed(0)}%</div>
                         </div>
                     </div>
@@ -289,10 +292,10 @@ export default function UniverseDetail() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Leaders and Laggards */}
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 md:col-span-1 border-l-4 border-l-emerald-500">
-                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Award size={18} className="text-emerald-400" /> Leaders & Laggards</h2>
+                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Award size={18} className="text-emerald-400" /> {tr('Leaders and laggards', 'Destaques e piores desempenhos')}</h2>
                             <div className="space-y-4">
                                 <div>
-                                    <h3 className="text-xs uppercase text-neutral-500 font-bold mb-2">Top Performers ({timeSpan})</h3>
+                                    <h3 className="text-xs uppercase text-neutral-500 font-bold mb-2">{tr('Top performers', 'Melhores desempenhos')} ({timeSpan})</h3>
                                     {analytics.positions.slice(0, 3).map((p: any) => (
                                         <div key={p.symbol} className="flex justify-between text-sm py-1 border-b border-neutral-800/50 last:border-0">
                                             <span className="font-medium text-white">{p.symbol}</span>
@@ -301,7 +304,7 @@ export default function UniverseDetail() {
                                     ))}
                                 </div>
                                 <div>
-                                    <h3 className="text-xs uppercase text-neutral-500 font-bold mb-2 mt-4">Bottom Performers ({timeSpan})</h3>
+                                    <h3 className="text-xs uppercase text-neutral-500 font-bold mb-2 mt-4">{tr('Worst performers', 'Piores desempenhos')} ({timeSpan})</h3>
                                     {analytics.positions.slice(-3).reverse().map((p: any) => (
                                         <div key={p.symbol} className="flex justify-between text-sm py-1 border-b border-neutral-800/50 last:border-0">
                                             <span className="font-medium text-white">{p.symbol}</span>
@@ -315,7 +318,7 @@ export default function UniverseDetail() {
                         {/* Group Value AreaChart */}
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 md:col-span-2">
                             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                                <ChartIcon size={18} className="text-indigo-400" /> Group Aggregate Performance ({timeSpan})
+                                <ChartIcon size={18} className="text-indigo-400" /> {tr('Group aggregate performance', 'Desempenho agregado do grupo')} ({timeSpan})
                             </h2>
                             <div className="h-[250px] w-full">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -325,7 +328,7 @@ export default function UniverseDetail() {
                                         <YAxis stroke="#525252" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `$${v.toFixed(0)}`} />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px' }}
-                                            formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Equal Weight Group Index']}
+                                            formatter={(value: any) => [`$${Number(value).toFixed(2)}`, tr('Equal-weight group index', 'Índice do grupo com pesos iguais')]}
                                             labelStyle={{ color: '#a3a3a3' }}
                                         />
                                         <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
@@ -341,7 +344,7 @@ export default function UniverseDetail() {
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
                     <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
                         <ChartIcon size={18} className="text-indigo-400" />
-                        Component Return Comparison (Normalized %)
+                        {tr('Component Return Comparison (Normalized %)', 'Comparação de retorno por componente (normalizado %)')}
                     </h2>
                     <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -376,8 +379,8 @@ export default function UniverseDetail() {
             {!items || items.length === 0 ? (
                 <div className="p-12 border border-dashed border-neutral-800 rounded-2xl text-center bg-neutral-900/20 mt-8">
                     <AlertCircle className="mx-auto h-12 w-12 text-neutral-600 mb-4" />
-                    <h3 className="text-lg font-medium text-neutral-300">No assets tracked</h3>
-                    <p className="text-neutral-500 mt-1">This universe definition did not match any active symbols.</p>
+                    <h3 className="text-lg font-medium text-neutral-300">{tr('No tracked assets', 'Nenhum ativo acompanhado')}</h3>
+                    <p className="text-neutral-500 mt-1">{tr('This universe definition did not resolve any active symbols.', 'A definição deste universo não encontrou símbolos ativos.')}</p>
                 </div>
             ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

@@ -128,14 +128,14 @@ model AiNarrative {
   symbol       String? // null = daily summary
   date         String // YYYY-MM-DD
   role         String   @default("CONSENSUS")
-  llmConfigId  String
+  llmConfigId  String?
   contentText  String
   providerUsed String
   modelUsed    String
   createdAt    DateTime @default(now())
 
   user      User          @relation(fields: [userId], references: [id])
-  llmConfig UserLLMConfig @relation(fields: [llmConfigId], references: [id])
+  llmConfig UserLLMConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
 }
 
 model ScreenerSnapshot {

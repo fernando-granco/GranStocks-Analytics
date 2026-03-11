@@ -45,8 +45,7 @@ export default async function universeRoutes(server: FastifyInstance) {
 
     // --- Advanced Symbol Search & Metadata Filtering ---
     server.get('/symbols/search', async (req: FastifyRequest, reply: FastifyReply) => {
-        // Explicitly demand authentication for this potentially expensive public-facing route
-        await server.authenticate(req as any, reply as any);
+        // Authentication is already enforced by plugin-level preValidation hook.
 
         const schema = z.object({
             q: z.string().optional(),

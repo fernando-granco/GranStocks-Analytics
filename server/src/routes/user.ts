@@ -84,7 +84,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
                 return reply.status(401).send({ error: 'Invalid current password.' });
             }
 
-            const passwordHash = await bcrypt.hash(newPassword, 10);
+            const passwordHash = await bcrypt.hash(newPassword, 12);
             await prisma.user.update({
                 where: { id: user.id },
                 data: { passwordHash, mustChangePassword: false }

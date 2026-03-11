@@ -45,7 +45,7 @@ export default function Screener() {
         queryKey: ['screener_top', activeTab],
         queryFn: async () => {
             const res = await fetch(`/api/screener/top/all?universes=${activeTab}`);
-            if (!res.ok) throw new Error('Failed to fetch screener data');
+            if (!res.ok) throw new Error('Falha ao buscar dados do Screener');
             return res.json();
         },
         enabled: !!activeTab,
@@ -64,15 +64,15 @@ export default function Screener() {
     const trackMutation = useMutation({
         mutationFn: async (symbol: string) => {
             // Determine assetType based on the universe of the asset being tracked
-            const assetUniverse = data?.topCandidates.find((c: any) => c.symbol === symbol)?.universeType;
-            const assetType = assetUniverse === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
+            const assetUniverso = data?.topCandidates.find((c: any) => c.symbol === symbol)?.universeType;
+            const assetType = assetUniverso === 'CRYPTO' ? 'CRYPTO' : 'STOCK';
 
             const res = await fetch('/api/tracked-assets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ symbol, assetType })
             });
-            if (!res.ok) throw new Error('Failed to track asset');
+            if (!res.ok) throw new Error('Falha ao acompanhar ativo');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tracked-assets'] });
@@ -82,7 +82,7 @@ export default function Screener() {
     const untrackMutation = useMutation({
         mutationFn: async (symbol: string) => {
             const res = await fetch(`/api/tracked-assets/${symbol}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to untrack asset');
+            if (!res.ok) throw new Error('Falha ao parar de acompanhar ativo');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tracked-assets'] });
@@ -100,7 +100,7 @@ export default function Screener() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['screener_top', activeTab] });
-            toast.success('Screener job triggered in background');
+            toast.success('Job do Screener disparado in background');
         }
     });
 
@@ -162,27 +162,37 @@ export default function Screener() {
 
             {/* Display Tabs */}
             {selectedUniverses.length > 0 && (
-                <div className="flex flex-wrap gap-2 border-b border-neutral-800 pb-px">
-                    {[
-                        { id: 'SP500', label: 'S&P 500' },
-                        { id: 'NASDAQ100', label: 'NASDAQ 100' },
-                        { id: 'TSX60', label: 'TSX 60' },
-                        { id: 'IBOV', label: 'IBOVESPA' },
-                        { id: 'CRYPTO', label: 'Crypto' }
-                    ].filter(u => selectedUniverses.includes(u.id)).map(u => (
-                        <button
-                            key={u.id}
-                            onClick={() => setActiveTab(u.id)}
-                            className={cn(
-                                "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-                                activeTab === u.id
-                                    ? "border-indigo-500 text-indigo-400"
-                                    : "border-transparent text-neutral-500 hover:text-neutral-300 hover:border-neutral-700"
-                            )}
-                        >
-                            {u.label}
-                        </button>
-                    ))}
+                <div className="flex flex-col gap-2 border-b border-neutral-800 pb-px">
+                    <div className="flex flex-wrap gap-2">
+                        {[
+                            { id: 'SP500', label: 'S&P 500' },
+                            { id: 'NASDAQ100', label: 'NASDAQ 100' },
+                            { id: 'TSX60', label: 'TSX 60' },
+                            { id: 'IBOV', label: 'IBOVESPA' },
+                            { id: 'CRYPTO', label: 'Crypto' }
+                        ].filter(u => selectedUniverses.includes(u.id)).map(u => (
+                            <button
+                                key={u.id}
+                                onClick={() => setActiveTab(u.id)}
+                                className={cn(
+                                    "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                                    activeTab === u.id
+                                        ? "border-indigo-500 text-indigo-400"
+                                        : "border-transparent text-neutral-500 hover:text-neutral-300 hover:border-neutral-700"
+                                )}
+                            >
+                                {u.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="text-xs text-neutral-500 px-2 flex items-center gap-1.5 font-medium pb-2">
+                        <Info size={12} className="text-indigo-400" />
+                        {activeTab === 'CRYPTO'
+                            ? 'Live Continuous Updates (24/7)'
+                            : activeTab === 'SP500' || activeTab === 'NASDAQ100'
+                                ? 'Background Quotes: Updates every 1m during active market hours'
+                                : 'Background Quotes: Updates every 15m during active market hours'}
+                    </div>
                 </div>
             )}
 

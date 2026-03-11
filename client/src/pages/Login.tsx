@@ -20,16 +20,15 @@ export default function Login() {
 
         try {
             if (mustChange) {
-                if (newPassword.length < 10) throw new Error('New password must be at least 10 characters.');
+                if (newPassword.length < 10) throw new Error('A nova senha precisa ter no mínimo 10 caracteres.');
                 const res = await fetch('/api/auth/update-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ newPassword })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed to update password');
+                if (!res.ok) throw new Error(data.error || 'Não foi possível atualizar a senha.');
 
-                // Fetch me again or just navigate, since cookie is already set
                 const meRes = await fetch('/api/auth/me');
                 if (meRes.ok) {
                     const meData = await meRes.json();
@@ -46,7 +45,7 @@ export default function Login() {
             });
 
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to login');
+            if (!res.ok) throw new Error(data.error || 'Falha ao entrar.');
 
             if (data.mustChangePassword) {
                 setMustChange(true);
@@ -84,13 +83,13 @@ export default function Login() {
             </Link>
 
             <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-8">
-                <h2 className="text-xl font-semibold text-white mb-6 text-center">Sign in to your account</h2>
+                <h2 className="text-xl font-semibold text-white mb-6 text-center">Entre na sua conta</h2>
 
                 {error && <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg text-sm">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-1">Email</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-1">E-mail</label>
                         <input
                             type="email"
                             required
@@ -102,7 +101,7 @@ export default function Login() {
                     </div>
                     {!mustChange ? (
                         <div>
-                            <label className="block text-sm font-medium text-neutral-400 mb-1">Password</label>
+                            <label className="block text-sm font-medium text-neutral-400 mb-1">Senha</label>
                             <input
                                 type="password"
                                 required
@@ -113,17 +112,17 @@ export default function Login() {
                         </div>
                     ) : (
                         <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-lg">
-                            <label className="block text-sm font-medium text-amber-500 mb-2">Update Required by Admin: New Password</label>
+                            <label className="block text-sm font-medium text-amber-500 mb-2">Atualização obrigatória definida pelo admin: nova senha</label>
                             <input
                                 type="password"
                                 required
                                 value={newPassword}
                                 onChange={e => setNewPassword(e.target.value)}
                                 minLength={10}
-                                placeholder="Min 10 characters"
+                                placeholder="Mínimo de 10 caracteres"
                                 className="w-full bg-neutral-950 border border-amber-500/50 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500 transition-colors mb-1"
                             />
-                            <p className="text-xs text-neutral-500">Please choose a new strong password to securely access your account.</p>
+                            <p className="text-xs text-neutral-500">Escolha uma senha forte para continuar com segurança.</p>
                         </div>
                     )}
                     <button
@@ -131,12 +130,12 @@ export default function Login() {
                         disabled={loading}
                         className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 transition-colors mt-2"
                     >
-                        {loading ? 'Processing...' : mustChange ? 'Update Password & Continue' : 'Sign In'}
+                        {loading ? 'Processando...' : mustChange ? 'Atualizar senha e continuar' : 'Entrar'}
                     </button>
                 </form>
 
                 <p className="mt-6 text-center text-sm text-neutral-500">
-                    Don't have an account? <Link to="/register" className="text-indigo-400 hover:text-indigo-300">Create one</Link>
+                    Ainda não tem conta? <Link to="/register" className="text-indigo-400 hover:text-indigo-300">Criar conta</Link>
                 </p>
             </div>
         </div>

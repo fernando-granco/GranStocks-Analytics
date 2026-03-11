@@ -17,7 +17,7 @@ export default function Register() {
         setError('');
 
         if (password.length < 10) {
-            return setError('Password must be at least 10 characters long.');
+            return setError('A senha precisa ter pelo menos 10 caracteres.');
         }
 
         setLoading(true);
@@ -30,7 +30,7 @@ export default function Register() {
             });
 
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to register');
+            if (!res.ok) throw new Error(data.error || 'Falha ao criar conta.');
 
             await login(data);
             navigate('/app');
@@ -63,13 +63,13 @@ export default function Register() {
             </Link>
 
             <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-8">
-                <h2 className="text-xl font-semibold text-white mb-6 text-center">Create your account</h2>
+                <h2 className="text-xl font-semibold text-white mb-6 text-center">Crie sua conta</h2>
 
                 {error && <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-lg text-sm">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-1">Email</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-1">E-mail</label>
                         <input
                             type="email"
                             required
@@ -79,7 +79,7 @@ export default function Register() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-1">Password</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-1">Senha</label>
                         <input
                             type="password"
                             required
@@ -88,10 +88,10 @@ export default function Register() {
                             minLength={10}
                             className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors"
                         />
-                        <p className="text-xs text-neutral-500 mt-1">Must be at least 10 characters long.</p>
+                        <p className="text-xs text-neutral-500 mt-1">Precisa ter no mínimo 10 caracteres.</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-1">Invite Code <span className="text-rose-500">*</span></label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-1">Código de convite <span className="text-rose-500">*</span></label>
                         <input
                             type="text"
                             required
@@ -106,12 +106,12 @@ export default function Register() {
                         disabled={loading}
                         className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 transition-colors mt-2"
                     >
-                        {loading ? 'Creating account...' : 'Create Account'}
+                        {loading ? 'Criando conta...' : 'Criar conta'}
                     </button>
                 </form>
 
                 <p className="mt-6 text-center text-sm text-neutral-500">
-                    Already have an account? <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Sign in</Link>
+                    Já tem conta? <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Entrar</Link>
                 </p>
             </div>
         </div>

@@ -47,7 +47,7 @@ export default function Landing() {
                     <button
                         onClick={toggleLanguage}
                         className="text-lg hover:opacity-80 transition-opacity"
-                        title="Toggle Language"
+                        title="Alternar idioma"
                     >
                         <span className="text-sm font-bold text-neutral-400 bg-white/5 px-2 py-1 rounded">{i18n.language === 'en' ? 'EN' : 'PT'}</span>
                     </button>

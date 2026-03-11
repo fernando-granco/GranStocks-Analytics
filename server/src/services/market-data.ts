@@ -3,73 +3,87 @@ import { BinanceProvider } from './providers/binance';
 import { FinnhubService } from './finnhub';
 import { FinnhubProvider } from './providers/finnhub';
 import { BrapiProvider } from './providers/brapi';
-import { FMPProvider } from './providers/fmp';
+// FMP Removed
 import { prisma } from './cache';
 import { toDateString } from '../utils/date-helpers';
+
+import { getMarketSession, MarketSessionInfo } from '../utils/market-hours';
 
 export class MarketData {
 
     static async getQuote(symbol: string, assetType: 'STOCK' | 'CRYPTO') {
         const cacheKey = `quote_${assetType}_${symbol}`;
-        let liveQuote = null;
+        let liveQuote: any = null;
+
+        const sessionInfo = getMarketSession(symbol, assetType);
 
         try {
             if (assetType === 'CRYPTO') {
                 liveQuote = await BinanceProvider.getQuote(symbol);
             } else {
                 try {
-                    // Pre-empt Prixe for Brazilian stocks
-                    if (symbol.endsWith('.SA')) {
+                    // BR Stocks: Primary Brapi -> Fallback Yahoo
+                    if (sessionInfo.market === 'BR') {
                         try {
                             liveQuote = await BrapiProvider.getQuote(symbol);
                         } catch (errBrapi) {
-                            console.warn(`[MarketData] Brapi failed for ${symbol}, falling back to Prixe...`);
-                            liveQuote = await PrixeProvider.getQuote(symbol);
+                            console.warn(`[MarketData] Brapi failed for ${symbol}, falling back to Yahoo...`);
+                            liveQuote = await FinnhubService.getYahooQuote(symbol);
+                            if (!liveQuote) throw new Error('Yahoo Finance failed for BR');
                         }
-                    } else if (symbol.endsWith('.TO')) {
-                        try {
-                            liveQuote = await FMPProvider.getQuote(symbol);
-                        } catch (errFMP) {
-                            console.warn(`[MarketData] FMP failed for ${symbol}, falling back to Prixe...`);
-                            liveQuote = await PrixeProvider.getQuote(symbol);
-                        }
-                    } else {
-                        // Primary: Prixe
+                    }
+                    // CA Stocks: Primary Yahoo
+                    else if (sessionInfo.market === 'CA') {
+                        liveQuote = await FinnhubService.getYahooQuote(symbol);
+                        if (!liveQuote) throw new Error('Yahoo Finance failed for CA');
+                    }
+                    // US Stocks: Primary Prixe -> Finnhub -> Yahoo
+                    else {
                         liveQuote = await PrixeProvider.getQuote(symbol);
                     }
-                } catch (errPrixe) {
-                    console.warn(`[MarketData] Primary API failed for ${symbol}, falling back to Finnhub...`);
-                    let fhQuote;
-                    try {
-                        fhQuote = await FinnhubService.getQuote(symbol);
-                    } catch (e) {
-                        fhQuote = null;
-                    }
+                } catch (errPrimary) {
+                    if (sessionInfo.market === 'US') {
+                        console.warn(`[MarketData] Prixe failed for US ${symbol}, falling back to Finnhub...`);
+                        let fhQuote;
+                        try {
+                            fhQuote = await FinnhubService.getQuote(symbol);
+                        } catch (e) {
+                            fhQuote = null;
+                        }
 
-                    if (!fhQuote || fhQuote.d === null || fhQuote.c === 0) {
-                        // Fallback to Yahoo Finance for international stocks
-                        const yfQuoteStr = await FinnhubService.getYahooQuote(symbol);
-                        if (!yfQuoteStr) throw new Error('All providers failed');
-                        liveQuote = yfQuoteStr;
+                        if (!fhQuote || fhQuote.d === null || fhQuote.c === 0) {
+                            console.warn(`[MarketData] Finnhub failed for US ${symbol}, falling back to Yahoo...`);
+                            const yfQuoteStr = await FinnhubService.getYahooQuote(symbol);
+                            if (!yfQuoteStr) throw new Error('All US providers failed');
+                            liveQuote = yfQuoteStr;
+                        } else {
+                            liveQuote = {
+                                symbol,
+                                assetType: 'STOCK',
+                                price: parseFloat(fhQuote.c),
+                                changeAbs: parseFloat(fhQuote.d),
+                                changePct: parseFloat(fhQuote.dp),
+                                ts: fhQuote.t,
+                                source: 'FINNHUB',
+                                isStale: false
+                            };
+                        }
                     } else {
-                        liveQuote = {
-                            symbol,
-                            assetType: 'STOCK',
-                            price: parseFloat(fhQuote.c),
-                            changeAbs: parseFloat(fhQuote.d),
-                            changePct: parseFloat(fhQuote.dp),
-                            ts: fhQuote.t,
-                            source: 'FINNHUB',
-                            isStale: false
-                        };
+                        // Re-throw if it wasn't a US stock (since CA/BR fallbacks are handled above)
+                        throw errPrimary;
                     }
                 }
             }
         } catch (e) {
-            console.warn(`[MarketData] Live quote failed for ${symbol}, attempting cache...`);
+            console.warn(`[MarketData] Live quote failed for ${symbol}, attempting offline cache...`);
         }
 
         if (liveQuote) {
+            // Append session info to live quote
+            liveQuote.market = sessionInfo.market;
+            liveQuote.sessionStatus = sessionInfo.status;
+            liveQuote.quoteType = sessionInfo.quoteType;
+
             // Save to cache
             await prisma.cachedResponse.upsert({
                 where: { cacheKey },
@@ -84,10 +98,14 @@ export class MarketData {
         if (cached) {
             const parsed = JSON.parse(cached.payloadJson);
             parsed.isStale = true;
+            // Ensure even offline stale quotes carry the strictly calculated current theoretical session matching real-world time for UI
+            parsed.market = sessionInfo.market;
+            parsed.sessionStatus = sessionInfo.status;
+            parsed.quoteType = sessionInfo.quoteType;
             return parsed;
         }
 
-        throw new Error('Quote unavailable offline.');
+        throw new Error('Quote unavailable offline and online.');
     }
 
     static async getCandles(symbol: string, assetType: 'STOCK' | 'CRYPTO', rangeStr: string) {
@@ -194,9 +212,12 @@ export class MarketData {
                     }
                 } else if (symbol.endsWith('.TO')) {
                     try {
-                        return await FMPProvider.getCandles(symbol);
-                    } catch (errFMP) {
-                        console.warn(`[MarketData] FMP fallback for ${symbol} candles, falling back to Prixe...`);
+                        const toTs = Math.floor(Date.now() / 1000);
+                        const fromTs = Math.floor(fromDateObj.getTime() / 1000);
+                        const resolution = isIntraday ? '60' : 'D';
+                        return await FinnhubService.getCandles(symbol, resolution, fromTs, toTs);
+                    } catch (errYF) {
+                        console.warn(`[MarketData] Yahoo Finance fallback for ${symbol} candles, falling back to Prixe...`);
                         return await PrixeProvider.getCandles(symbol, fromDate, toDate, interval);
                     }
                 } else {

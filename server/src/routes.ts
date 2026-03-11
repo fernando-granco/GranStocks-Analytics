@@ -492,8 +492,8 @@ export async function registerRoutes(server: FastifyInstance) {
             return reply.status(404).send({ error: 'Config not found' });
         }
 
-        // Cascade delete dependent AiNarrative records for this configuration
-        await prisma.aiNarrative.deleteMany({ where: { llmConfigId: id } });
+        // Nullify the reference on dependent AiNarrative records (preserve historical analyses)
+        await prisma.aiNarrative.updateMany({ where: { llmConfigId: id }, data: { llmConfigId: null } });
 
         await prisma.userLLMConfig.delete({ where: { id } });
         return { success: true };
@@ -1042,7 +1042,7 @@ export async function registerRoutes(server: FastifyInstance) {
     });
 
     // --- System Status ---
-    server.get('/api/system/scheduler-status', async (req, reply) => {
+    server.get('/api/system/scheduler-status', { preValidation: [server.authenticate] }, async (req, reply) => {
         const [heartbeat, equities, crypto] = await Promise.all([
             prisma.cachedResponse.findUnique({ where: { cacheKey: 'scheduler_heartbeat' } }),
             prisma.cachedResponse.findUnique({ where: { cacheKey: 'scheduler_last_success_equities' } }),

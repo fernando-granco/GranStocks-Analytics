@@ -79,28 +79,16 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
     const runJobMutation = useMutation({
         mutationFn: async () => {
             const res = await fetch('/api/admin/run-daily', { method: 'POST' });
-            if (!res.ok) throw new Error('Failed to start daily job');
+            if (!res.ok) throw new Error('Falha ao iniciar rotina diária');
         },
         onSuccess: () => {
-            alert('Daily Analysis Job started in the background. Check back in a few minutes!');
+            alert('Job diário iniciado em segundo plano. Volte em alguns minutos!');
         }
-    });
-
-    const { data: systemStatus } = useQuery({
-        queryKey: ['systemStatus'],
-        queryFn: async () => {
-            const res = await fetch('/api/system/scheduler-status');
-            if (!res.ok) return null;
-            return res.json();
-        },
-        refetchInterval: 60000 // Refetch every minute
-    });
-
-    const queryClient = useQueryClient();
+    });    const queryClient = useQueryClient();
     const untrackMutation = useMutation({
         mutationFn: async (symbol: string) => {
             const res = await fetch(`/api/tracked-assets/${symbol}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to untrack asset');
+            if (!res.ok) throw new Error('Falha ao parar de acompanhar ativo');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['overview'] });
@@ -122,33 +110,7 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
                 <>
                     <div className="flex justify-between items-center mb-8">
                         <div>
-                            <h2 className="text-2xl font-bold tracking-tight">{t('dashboard.market_overview')}</h2>
-                            <div className="text-sm font-medium mt-2 flex flex-col gap-1.5">
-                                {systemStatus?.ts ? (
-                                    <>
-                                        <div className="flex items-center gap-1.5 text-neutral-400">
-                                            <div className={`w-2 h-2 rounded-full ${systemStatus.status === 'OK' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]'}`} />
-                                            <span>System Heartbeat: {new Date(systemStatus.ts).toLocaleTimeString()} {systemStatus.status === 'ERROR' && <span className="text-rose-400 ml-1">({systemStatus.error || 'Failed'})</span>}</span>
-                                        </div>
-                                        {systemStatus.equitiesTs && (
-                                            <div className="flex items-center gap-1.5 pl-3.5 text-xs text-neutral-500">
-                                                <span>Equities: Updated {new Date(systemStatus.equitiesTs).toLocaleTimeString()} ({systemStatus.equitiesTs === systemStatus.ts ? 'Live' : 'Closed/Cached'})</span>
-                                            </div>
-                                        )}
-                                        {systemStatus.cryptoTs && (
-                                            <div className="flex items-center gap-1.5 pl-3.5 text-xs text-neutral-500">
-                                                <span>Crypto: Updated {new Date(systemStatus.cryptoTs).toLocaleTimeString()} (Live)</span>
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <span className="flex items-center gap-1.5 text-neutral-500">
-                                        <div className="w-2 h-2 rounded-full bg-neutral-600" />
-                                        Waiting for first scheduler run...
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                            <h2 className="text-2xl font-bold tracking-tight">{t('dashboard.market_overview')}</h2>                        </div>
                         {['ADMIN', 'SUPERADMIN'].includes(user?.role || '') && (
                             <button
                                 onClick={() => runJobMutation.mutate()}
@@ -185,7 +147,7 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
                 </>
             )}
 
-            {/* Custom Universes Section */}
+            {/* Custom Universos Section */}
             {(!universes || universes.length === 0) && hideEmptyCustomUniverses ? null : (
                 <div className="pt-8 mt-8 border-t border-neutral-800">
                     <div className="flex justify-between items-center mb-6">
@@ -193,12 +155,12 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
                     </div>
 
                     {isLoadingUniverses ? (
-                        <div className="text-neutral-500 animate-pulse">Loading universes...</div>
+                        <div className="text-neutral-500 animate-pulse">Carregando universos...</div>
                     ) : !universes || universes.length === 0 ? (
                         <div className="p-8 border border-dashed border-neutral-800 rounded-2xl text-center bg-neutral-900/20">
                             <Blocks className="mx-auto h-10 w-10 text-neutral-600 mb-3" />
-                            <h3 className="text-base font-medium text-neutral-300">No Custom Universes</h3>
-                            <p className="text-sm text-neutral-500 mt-1">Create one in the Universe Builder (Pro Feature).</p>
+                            <h3 className="text-base font-medium text-neutral-300">Nenhum Universo personalizado</h3>
+                            <p className="text-sm text-neutral-500 mt-1">Crie um no Construtor de Universos (Recurso Pro).</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -238,3 +200,7 @@ export default function Dashboard({ onSelect }: { onSelect: (symbol: string, ass
         </div>
     );
 }
+
+
+
+

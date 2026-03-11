@@ -21,7 +21,7 @@ export default function AdminInvites() {
     const fetchInvites = async () => {
         try {
             const res = await fetch('/api/admin/invites');
-            if (!res.ok) throw new Error('Failed to fetch invites');
+            if (!res.ok) throw new Error('Falha ao buscar convites');
             setInvites(await res.json());
         } catch (err: any) {
             setError(err.message);
@@ -42,7 +42,7 @@ export default function AdminInvites() {
                     expiresDays: expiresDays > 0 ? expiresDays : null
                 })
             });
-            if (!res.ok) throw new Error('Failed to create invite code');
+            if (!res.ok) throw new Error('Falha ao criar código de convite');
             setNewCode('');
             setMaxUses(1);
             setExpiresDays(7);
@@ -56,7 +56,7 @@ export default function AdminInvites() {
         if (!confirm('Are you sure you want to delete this code?')) return;
         try {
             const res = await fetch(`/api/admin/invites/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete invite code');
+            if (!res.ok) throw new Error('Falha ao excluir código de convite');
             fetchInvites();
         } catch (err: any) {
             alert(err.message);
@@ -80,7 +80,7 @@ export default function AdminInvites() {
 
             <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 mb-8">
                 <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <Key className="w-5 h-5 text-indigo-400" /> Generate New Code
+                    <Key className="w-5 h-5 text-indigo-400" /> Gerar novo código
                 </h2>
                 <form onSubmit={handleCreate} className="flex gap-4 items-end flex-wrap">
                     <div className="flex-1 min-w-[200px]">
@@ -137,7 +137,7 @@ export default function AdminInvites() {
                                         <td className="p-4">
                                             <div className="flex items-center gap-2 text-sm text-neutral-400">
                                                 <Calendar className="w-4 h-4" />
-                                                {code.expiresAt ? new Date(code.expiresAt).toLocaleDateString() : 'Never'}
+                                                {code.expiresAt ? new Date(code.expiresAt).toLocaleDateString() : 'Nunca'}
                                             </div>
                                         </td>
                                         <td className="p-4 text-sm text-neutral-500">{code.createdBy}</td>

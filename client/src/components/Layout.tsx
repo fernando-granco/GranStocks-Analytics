@@ -68,7 +68,7 @@ export default function Layout() {
                         <button
                             onClick={toggleLanguage}
                             className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
-                            title="Toggle Language"
+                            title="Alternar idioma"
                         >
                             <span className="text-sm font-bold text-neutral-400 bg-white/5 px-1.5 py-0.5 rounded">{i18n.language === 'en' ? 'EN' : 'PT'}</span>
                         </button>
@@ -98,8 +98,8 @@ export default function Layout() {
             </main>
 
             <footer className="max-w-7xl mx-auto px-4 py-12 text-center text-sm text-neutral-600">
-                <p>Disclaimer: Educational analysis only — not financial advice.</p>
-                <p>Predictions are uncertain and may be wrong. AI-generated commentary may be inaccurate.</p>
+                <p>Aviso: análise educacional, não constitui recomendação financeira.</p>
+                <p>Previsões são incertas e podem estar erradas. Conteúdos gerados por IA podem conter imprecisões.</p>
             </footer>
         </div >
     );

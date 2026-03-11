@@ -120,7 +120,7 @@ function PortfolioSummaryCard({ portfolio }: { portfolio: any }) {
                                         window.location.reload();
                                     } else {
                                         const data = await res.json();
-                                        alert(data.error || 'Failed to delete portfolio');
+                                        alert(data.error || 'Falha ao excluir carteira');
                                     }
                                 } catch (e) {
                                     console.error(e);

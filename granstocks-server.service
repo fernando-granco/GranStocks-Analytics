@@ -4,7 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=www-data
+Group=www-data
 WorkingDirectory=/var/www/granstocks/server
 EnvironmentFile=/var/www/granstocks/server/.env
 ExecStart=/usr/bin/node dist/index.js

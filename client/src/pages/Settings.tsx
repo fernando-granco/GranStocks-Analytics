@@ -86,11 +86,11 @@ export default function Settings() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ screenerUniverses: selectedUniverses })
             });
-            if (!res.ok) throw new Error('Failed to save screener presets');
+            if (!res.ok) throw new Error('Falha ao salvar presets do Screener');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['preferences'] });
-            alert('Screener Market Preferences Saved!');
+            alert('Preferências de mercado do Screener salvas!');
         }
     });
 
@@ -143,7 +143,7 @@ export default function Settings() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            if (!res.ok) throw new Error('Failed to save config');
+            if (!res.ok) throw new Error('Falha ao salvar configuração');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['llmConfigs'] });
@@ -154,7 +154,7 @@ export default function Settings() {
     const deleteConfigMutation = useMutation({
         mutationFn: async (id: string) => {
             const res = await fetch(`/api/settings/llm/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to delete config');
+            if (!res.ok) throw new Error('Falha ao excluir configuração');
             return id;
         },
         onSuccess: (deletedId) => {
@@ -182,7 +182,7 @@ export default function Settings() {
     const saveAnalysisMutation = useMutation({
         mutationFn: async () => {
             let finalizedJson = analysisConfigJson;
-            let name = 'Custom Advanced';
+            let name = 'Custom Avançado';
             if (analysisMode === 'BASIC') {
                 const profile = RISK_PROFILES[selectedRiskProfile];
                 if (profile) {
@@ -201,11 +201,11 @@ export default function Settings() {
                     isActive: true
                 })
             });
-            if (!res.ok) throw new Error('Failed to save analysis config');
+            if (!res.ok) throw new Error('Falha ao salvar configuração de análise');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['analysisConfigs'] });
-            alert('Analysis Configuration Saved Successfully!');
+            alert('Configuração de análise salva com sucesso!');
         }
     });
 
@@ -230,22 +230,22 @@ export default function Settings() {
                     enabled: true
                 })
             });
-            if (!res.ok) throw new Error('Failed to save prompt config');
+            if (!res.ok) throw new Error('Falha ao salvar configuração de prompt');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['promptConfigs'] });
-            alert('Prompt Template Saved Successfully!');
+            alert('Modelo de prompt salvo com sucesso!');
         }
     });
 
     const deletePromptMutation = useMutation({
         mutationFn: async (id: string) => {
             const res = await fetch(`/api/settings/prompts/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to restore default template');
+            if (!res.ok) throw new Error('Falha ao restaurar modelo padrão');
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['promptConfigs'] });
-            alert('Template Reset to Default Successfully!');
+            alert('Modelo redefinido para o padrão com sucesso!');
         }
     });
 
@@ -291,7 +291,7 @@ export default function Settings() {
                             onClick={() => { setConfigId(null); setConfigName(''); setConfigApiKey(''); setConfigModel(''); setConfigBaseUrl(''); document.getElementById('provider-modal')?.classList.remove('hidden'); }}
                             className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition-colors"
                         >
-                            + Add Provider
+                            + Adicionar provedor
                         </button>
                     </div>
 
@@ -299,18 +299,18 @@ export default function Settings() {
                     <div id="provider-modal" className={`hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4`}>
                         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative">
                             <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-neutral-950/50">
-                                <h3 className="text-xl font-semibold">{configId ? 'Edit Configuration' : 'Add New Configuration'}</h3>
+                                <h3 className="text-xl font-semibold">{configId ? 'Editarar configuração' : 'Adicionar nova configuração'}</h3>
                                 <button onClick={() => document.getElementById('provider-modal')?.classList.add('hidden')} className="text-neutral-500 hover:text-white transition-colors">✕</button>
                             </div>
 
                             <form className="p-6 space-y-5" onSubmit={(e) => { e.preventDefault(); saveConfigMutation.mutate(); document.getElementById('provider-modal')?.classList.add('hidden'); }}>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-medium text-neutral-400">Target Name</label>
+                                        <label className="text-xs font-medium text-neutral-400">Nome de referência</label>
                                         <input type="text" placeholder="e.g. My ChatGPT" value={configName} onChange={e => setConfigName(e.target.value)} required className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-medium text-neutral-400">Provider Interface</label>
+                                        <label className="text-xs font-medium text-neutral-400">Interface do provedor</label>
                                         <select value={configProvider} onChange={e => {
                                             setConfigProvider(e.target.value);
                                             if (!configId) setConfigModel(''); // reset model only if creating new
@@ -330,20 +330,20 @@ export default function Settings() {
                                 {configProvider === 'OPENAI_COMPAT' && (
                                     <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-3">
                                         <p className="text-xs text-indigo-400">
-                                            Use this to connect to any API that uses OpenAI format (LM Studio, vLLM, custom clusters). Provide your custom endpoint below.
+                                            Use isto para conectar qualquer API compatível com o formato OpenAI (LM Studio, vLLM, clusters próprios). Informe seu endpoint personalizado abaixo.
                                         </p>
                                     </div>
                                 )}
 
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-medium text-neutral-400">API Key {configId && '(Leave blank to keep existing)'}</label>
-                                    <input type="password" placeholder={configId ? "••••••••••••••••" : "Your API Key..."} value={configApiKey} onChange={e => setConfigApiKey(e.target.value)} required={!configId} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
+                                    <input type="password" placeholder={configId ? "••••••••••••••••" : "Sua API Key..."} value={configApiKey} onChange={e => setConfigApiKey(e.target.value)} required={!configId} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-medium text-neutral-400">Model Selector</label>
-                                        <input list="model-options" type="text" placeholder={configProvider === 'ANTHROPIC' ? 'claude-3-5-sonnet-20241022' : configProvider === 'DEEPSEEK' ? 'deepseek-chat' : configProvider === 'GROQ' ? 'llama3-70b-8192' : configProvider === 'GEMINI' ? 'gemini-1.5-flash' : configProvider === 'XAI' ? 'grok-beta' : 'Model Identifier Name'} value={configModel} onChange={e => setConfigModel(e.target.value)} required className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
+                                        <label className="text-xs font-medium text-neutral-400">Modelo</label>
+                                        <input list="model-options" type="text" placeholder={configProvider === 'ANTHROPIC' ? 'claude-3-5-sonnet-20241022' : configProvider === 'DEEPSEEK' ? 'deepseek-chat' : configProvider === 'GROQ' ? 'llama3-70b-8192' : configProvider === 'GEMINI' ? 'gemini-1.5-flash' : configProvider === 'XAI' ? 'grok-beta' : 'Identificador do modelo'} value={configModel} onChange={e => setConfigModel(e.target.value)} required className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-indigo-500 transition-colors" />
                                         <datalist id="model-options">
                                             {configProvider === 'OPENAI' && <><option value="gpt-4o" /><option value="gpt-4o-mini" /><option value="o1-preview" /></>}
                                             {configProvider === 'ANTHROPIC' && <><option value="claude-3-5-sonnet-20241022" /><option value="claude-3-5-haiku-20241022" /><option value="claude-3-opus-20240229" /></>}
@@ -365,7 +365,7 @@ export default function Settings() {
                                         Cancel
                                     </button>
                                     <button type="submit" disabled={saveConfigMutation.isPending} className="flex-1 px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 font-medium text-white rounded-lg transition-colors">
-                                        {saveConfigMutation.isPending ? 'Saving...' : configId ? 'Update Provider' : 'Save New Provider'}
+                                        {saveConfigMutation.isPending ? 'Salvando...' : configId ? 'Atualizar provedor' : 'Salvar novo provedor'}
                                     </button>
                                 </div>
                             </form>
@@ -406,10 +406,10 @@ export default function Settings() {
                                     }}
                                     className="text-neutral-400 hover:text-indigo-400 px-3 py-1.5 rounded-lg border border-neutral-800 hover:border-indigo-500/50 bg-neutral-900 transition-colors text-sm font-medium"
                                 >
-                                    Edit
+                                    Editar
                                 </button>
                                 <button
-                                    onClick={() => { if (window.confirm('Delete this provider?')) deleteConfigMutation.mutate(cfg.id); }}
+                                    onClick={() => { if (window.confirm('Excluir este provedor?')) deleteConfigMutation.mutate(cfg.id); }}
                                     disabled={deleteConfigMutation.isPending}
                                     className="text-neutral-500 hover:text-rose-400 p-2 rounded-lg hover:bg-rose-500/10 transition-colors disabled:opacity-40"
                                     title="Delete provider"
@@ -425,8 +425,8 @@ export default function Settings() {
             {activeTab === 'ANALYSIS' && (
                 <div className="space-y-8">
                     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                        <h3 className="text-xl font-semibold mb-4">Screener Markets</h3>
-                        <p className="text-neutral-500 text-sm mb-4">Select which markets appear as tabs in the Screener.</p>
+                        <h3 className="text-xl font-semibold mb-4">Mercados do Screener</h3>
+                        <p className="text-neutral-500 text-sm mb-4">Selecione quais mercados aparecem como abas no Screener.</p>
                         <div className="flex flex-wrap gap-3 mb-6">
                             {[
                                 { id: 'SP500', label: 'S&P 500' },
@@ -453,7 +453,7 @@ export default function Settings() {
                             })}
                         </div>
                         <button onClick={() => saveScreenerPrefsMutation.mutate()} disabled={saveScreenerPrefsMutation.isPending} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors">
-                            {saveScreenerPrefsMutation.isPending ? 'Saving...' : 'Save Market Preferences'}
+                            {saveScreenerPrefsMutation.isPending ? 'Salvando...' : 'Salvar preferências de mercado'}
                         </button>
                     </div>
 
@@ -462,25 +462,25 @@ export default function Settings() {
                         <p className="text-neutral-500 text-sm mb-6">{t('settings.analysis.desc')}</p>
 
                         <div className="flex border-b border-neutral-800 mb-6">
-                            <button onClick={() => setAnalysisMode('BASIC')} className={`px-4 py-2 font-medium ${analysisMode === 'BASIC' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300'}`}>Basic</button>
-                            <button onClick={() => setAnalysisMode('ADVANCED')} className={`px-4 py-2 font-medium ${analysisMode === 'ADVANCED' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300'}`}>Advanced</button>
+                            <button onClick={() => setAnalysisMode('BASIC')} className={`px-4 py-2 font-medium ${analysisMode === 'BASIC' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300'}`}>Básico</button>
+                            <button onClick={() => setAnalysisMode('ADVANCED')} className={`px-4 py-2 font-medium ${analysisMode === 'ADVANCED' ? 'text-indigo-400 border-b-2 border-indigo-500' : 'text-neutral-500 hover:text-neutral-300'}`}>Avançado</button>
                         </div>
 
                         {analysisMode === 'BASIC' ? (
                             <div className="space-y-4">
-                                <label className="block text-sm font-medium text-neutral-400 mb-2">Select a predefined Risk Profile:</label>
+                                <label className="block text-sm font-medium text-neutral-400 mb-2">Selecione um perfil de risco predefinido:</label>
                                 <select value={selectedRiskProfile} onChange={e => setSelectedRiskProfile(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500">
                                     {Object.entries(RISK_PROFILES).map(([key, p]) => (
                                         <option key={key} value={key}>{p.name.replace(' Profile', '')} ({p.description})</option>
                                     ))}
                                 </select>
-                                <p className="text-xs text-neutral-500">This modifies backend weights for RSI thresholds, Moving Averages, and Volatility penalties.</p>
+                                <p className="text-xs text-neutral-500">Isso altera os pesos de backend para limites de RSI, médias móveis e penalidades de volatilidade.</p>
 
                                 {selectedRiskProfile && RISK_PROFILES[selectedRiskProfile] && (
                                     <div className="mt-4 bg-neutral-950 p-4 rounded-lg border border-neutral-800">
                                         <div className="flex justify-between items-start mb-4">
                                             <h4 className="text-sm font-semibold text-indigo-400 flex items-center gap-2">
-                                                <Info className="w-4 h-4" /> Active Preset Weights
+                                                <Info className="w-4 h-4" /> Pesos ativos do preset
                                             </h4>
                                             <button
                                                 onClick={() => {
@@ -490,7 +490,7 @@ export default function Settings() {
                                                 }}
                                                 className="text-xs flex items-center gap-1 bg-neutral-800 hover:bg-neutral-700 text-white px-2 py-1 rounded transition-colors"
                                             >
-                                                <Copy className="w-3 h-3" /> Copy to Custom
+                                                <Copy className="w-3 h-3" /> Copiar para personalizado
                                             </button>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4 text-xs font-mono text-neutral-300">
@@ -512,14 +512,14 @@ export default function Settings() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <label className="block text-sm font-medium text-neutral-400 mb-2">Raw JSON Configuration:</label>
+                                <label className="block text-sm font-medium text-neutral-400 mb-2">Configuração JSON bruta:</label>
                                 <textarea
                                     value={analysisConfigJson}
                                     onChange={e => setAnalysisConfigJson(e.target.value)}
                                     className="w-full h-48 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-indigo-500 resize-none"
-                                    placeholder="Enter valid JSON for weights..."
+                                    placeholder="Digite um JSON válido para os pesos..."
                                 />
-                                <p className="text-xs text-neutral-500">Available keys: screener (volatilityThreshold, drawdownThreshold, etc), predict (rsiOverbought, rsiOversold, etc).</p>
+                                <p className="text-xs text-neutral-500">Chaves disponíveis: screener (volatilityThreshold, drawdownThreshold etc.), predict (rsiOverbought, rsiOversold etc.).</p>
                             </div>
                         )}
 
@@ -528,12 +528,12 @@ export default function Settings() {
                             disabled={saveAnalysisMutation.isPending}
                             className="mt-6 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 font-medium text-white rounded-lg w-full transition-colors"
                         >
-                            {saveAnalysisMutation.isPending ? 'Applying...' : 'Apply Analysis Config'}
+                            {saveAnalysisMutation.isPending ? 'Aplicando...' : 'Aplicar configuração de análise'}
                         </button>
 
                         {analysisConfigs && analysisConfigs.length > 0 && (
                             <div className="mt-8 pt-6 border-t border-neutral-800">
-                                <h4 className="text-sm font-medium text-neutral-400 mb-3">Active Profile:</h4>
+                                <h4 className="text-sm font-medium text-neutral-400 mb-3">Perfil ativo:</h4>
                                 {analysisConfigs.filter((c: any) => c.isActive).map((c: any) => (
                                     <div key={c.id} className="bg-neutral-950/50 p-3 rounded border border-indigo-500/30">
                                         <span className="text-indigo-400 text-sm font-medium">{c.name}</span>
@@ -544,46 +544,46 @@ export default function Settings() {
                     </div>
 
                     <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-                        <h3 className="text-xl font-semibold mb-4">{t('settings.prompts.title')} <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded ml-2 uppercase">Advanced</span></h3>
+                        <h3 className="text-xl font-semibold mb-4">{t('settings.prompts.title')} <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded ml-2 uppercase">Avançado</span></h3>
                         <p className="text-neutral-500 text-sm mb-6">{t('settings.prompts.desc')}</p>
 
                         <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Analysis Type:</label>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Tipo de análise:</label>
                                     <select value={promptRole} onChange={e => {
                                         const newRole = e.target.value;
                                         setPromptRole(newRole);
                                         setPromptText(DEFAULT_PROMPTS[newRole] || DEFAULT_PROMPTS['CONSENSUS']);
                                     }} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500">
-                                        <option value="CONSENSUS">Consensus / Daily Snapshot</option>
-                                        <option value="SCREENER">Screener Narrative</option>
-                                        <option value="RISK">Risk Assessment</option>
-                                        <option value="PORTFOLIO">Portfolio Analysis</option>
-                                        <option value="UNIVERSE">Universe Analysis</option>
+                                        <option value="CONSENSUS">Consenso / Snapshot diário</option>
+                                        <option value="SCREENER">Narrativa do Screener</option>
+                                        <option value="RISK">Avaliação de risco</option>
+                                        <option value="PORTFOLIO">Análise de carteira</option>
+                                        <option value="UNIVERSE">Análise de universo</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Output Format:</label>
+                                    <label className="block text-sm font-medium text-neutral-400 mb-2">Formato de saída:</label>
                                     <select value={promptOutputMode} onChange={e => setPromptOutputMode(e.target.value)} disabled={isActionLabels} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-indigo-500 disabled:opacity-50">
-                                        <option value="TEXT_ONLY">Text Only</option>
+                                        <option value="TEXT_ONLY">Somente texto</option>
                                         <option value="MARKDOWN">Markdown</option>
-                                        <option value="JSON_STRICT">Strict JSON (Beta)</option>
+                                        <option value="JSON_STRICT">JSON estrito (Beta)</option>
                                     </select>
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-neutral-400 mb-2">Prompt Template:</label>
+                                <label className="block text-sm font-medium text-neutral-400 mb-2">Modelo de prompt:</label>
                                 <textarea
                                     value={promptText}
                                     onChange={e => setPromptText(e.target.value)}
                                     className="w-full h-32 bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500 resize-none font-mono text-sm leading-relaxed"
-                                    placeholder="Enter your custom prompt instruction here..."
+                                    placeholder="Digite sua instrução de prompt personalizada aqui..."
                                 />
                                 {promptText.includes('{{') && (
                                     <div className="mt-2 p-3 bg-neutral-900 border border-neutral-800 rounded text-xs text-neutral-400 font-mono whitespace-pre-wrap">
-                                        <div className="font-bold text-neutral-300 mb-1 uppercase tracking-wider text-[10px]">Live Preview</div>
+                                        <div className="font-bold text-neutral-300 mb-1 uppercase tracking-wider text-[10px]">Pré-visualização</div>
                                         {promptText
                                             .replace(/{{ASSET_SYMBOL}}/g, 'AAPL')
                                             .replace(/{{DATE}}/g, new Date().toISOString().split('T')[0])
@@ -595,11 +595,11 @@ export default function Settings() {
 
                             <div className="mt-8 border border-neutral-800 rounded-lg p-5 bg-neutral-950/50">
                                 <h4 className="text-sm font-semibold text-rose-400 mb-3 flex items-center gap-2">
-                                    <Info className="w-4 h-4" /> Advanced Modules
+                                    <Info className="w-4 h-4" /> Avançado Modules
                                 </h4>
                                 <label className="flex items-center gap-3 text-sm text-neutral-300 cursor-pointer select-none">
                                     <input type="checkbox" checked={isActionLabels} onChange={e => setIsActionLabels(e.target.checked)} className="rounded border-neutral-700 text-indigo-500 focus:ring-indigo-500 bg-neutral-900 w-4 h-4 cursor-pointer" />
-                                    Force Action Labels (BUY / WAIT / SELL)
+                                    Forçar rótulos de ação (BUY / HOLD / SELL)
                                 </label>
 
                                 {isActionLabels && (
@@ -616,12 +616,12 @@ export default function Settings() {
                             disabled={savePromptMutation.isPending}
                             className="mt-6 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 font-medium text-white rounded-lg w-full transition-colors"
                         >
-                            {savePromptMutation.isPending ? 'Saving...' : 'Save Prompt Template'}
+                            {savePromptMutation.isPending ? 'Salvando...' : 'Salvar modelo de prompt'}
                         </button>
 
                         {promptConfigs && promptConfigs.length > 0 && (
                             <div className="mt-8 pt-6 border-t border-neutral-800">
-                                <h4 className="text-sm font-medium text-neutral-400 mb-3">Saved Prompt Templates:</h4>
+                                <h4 className="text-sm font-medium text-neutral-400 mb-3">Modelos de prompt salvos:</h4>
                                 {promptConfigs.filter((c: any) => c.enabled).map((c: any) => (
                                     <div key={c.id} className="bg-neutral-950/50 p-3 rounded border border-indigo-500/30 flex justify-between items-center mb-2">
                                         <div className="flex-1 mr-4 overflow-hidden">
@@ -630,7 +630,7 @@ export default function Settings() {
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             {c.outputMode === 'ACTION_LABELS' && (
-                                                <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded uppercase font-semibold">Action Labels</span>
+                                                <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded uppercase font-semibold">Rótulos de ação</span>
                                             )}
                                             {c.outputMode === 'MARKDOWN' && (
                                                 <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded uppercase font-semibold">Markdown</span>
@@ -648,19 +648,19 @@ export default function Settings() {
                                                     window.scrollTo({ top: 400, behavior: 'smooth' });
                                                 }}
                                             >
-                                                Edit
+                                                Editar
                                             </button>
                                             <button
                                                 className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs rounded border border-rose-500/20 transition-colors disabled:opacity-50"
                                                 onClick={() => {
-                                                    if (window.confirm('Reset this template back to the system default?')) {
+                                                    if (window.confirm('Redefinir este modelo para o padrão do sistema?')) {
                                                         deletePromptMutation.mutate(c.id);
                                                     }
                                                 }}
                                                 disabled={deletePromptMutation.isPending}
-                                                title="Reset to Default"
+                                                title="Redefinir para o padrão"
                                             >
-                                                Reset
+                                                Redefinir
                                             </button>
                                         </div>
                                     </div>

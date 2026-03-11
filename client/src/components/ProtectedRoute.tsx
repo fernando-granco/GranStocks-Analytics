@@ -26,14 +26,14 @@ export default function ProtectedRoute() {
             setError('');
             setLoading(true);
             try {
-                if (newPassword.length < 10) throw new Error('New password must be at least 10 characters.');
+                if (newPassword.length < 10) throw new Error('A nova senha precisa ter no mínimo 10 caracteres.');
                 const res = await fetch('/api/auth/update-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ newPassword })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Failed to update password');
+                if (!res.ok) throw new Error(data.error || 'Falha ao atualizar senha');
 
                 const meRes = await fetch('/api/auth/me');
                 if (meRes.ok) {
@@ -59,7 +59,7 @@ export default function ProtectedRoute() {
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-neutral-400 mb-1">New Password (Min 10 chars)</label>
+                            <label className="block text-sm font-medium text-neutral-400 mb-1">Nova senha (mín. 10 caracteres)</label>
                             <input
                                 type="password"
                                 required
@@ -74,7 +74,7 @@ export default function ProtectedRoute() {
                             disabled={loading || newPassword.length < 10}
                             className="w-full bg-amber-600 hover:bg-amber-500 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50"
                         >
-                            {loading ? 'Updating...' : 'Update Password & Continue'}
+                            {loading ? 'Atualizando...' : 'Atualizar senha e continuar'}
                         </button>
                     </form>
                 </div>

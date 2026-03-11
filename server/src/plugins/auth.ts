@@ -5,18 +5,26 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../services/cache';
 
 export default fp(async (fastify) => {
+    const cookieSecret = process.env.COOKIE_SECRET;
+    const jwtSecret = process.env.JWT_SECRET;
+
+    // Fail fast instead of falling back to insecure defaults.
+    if (!cookieSecret || !jwtSecret) {
+        throw new Error('COOKIE_SECRET and JWT_SECRET must be configured.');
+    }
+
     // Register cookie plugin
     fastify.register(cookie, {
-        secret: process.env.COOKIE_SECRET || 'supersecretcookie_default_dev_only', // Use a real secret in production
+        secret: cookieSecret,
         hook: 'onRequest'
     });
 
     // Register JWT plugin
     fastify.register(jwt, {
-        secret: process.env.JWT_SECRET || 'supersecretjwt_default_dev_only',
+        secret: jwtSecret,
         cookie: {
             cookieName: 'token',
-            signed: false
+            signed: true
         }
     });
 

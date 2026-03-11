@@ -1,12 +1,9 @@
 import { prisma } from './cache';
+import YahooFinance from 'yahoo-finance2';
+
+const yahooFinance = new YahooFinance({ suppressNotices: ['ripHistorical'] });
 
 export class FXService {
-    static getApiKey(): string {
-        const key = process.env.ALPHAVANTAGE_API_KEY;
-        if (!key) console.warn("ALPHAVANTAGE_API_KEY is not configured. FX service will fail.");
-        return key || '';
-    }
-
     /**
      * Gets the real-time FX rate from a source currency to a target currency.
      * Caches the result using CachedResponse table for 1 hour.
@@ -23,32 +20,28 @@ export class FXService {
             return typeof parsed.rate === 'number' ? parsed.rate : parseFloat(parsed.rate);
         }
 
-        // 2. Fetch Live
+        // 2. Fetch Live via Yahoo Finance
         try {
-            const url = `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=${fromCcy}&to_currency=${toCcy}&apikey=${this.getApiKey()}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`AlphaVantage returned ${res.status}`);
+            // Yahoo Finance FX format is usually e.g., "CADUSD=X"
+            const symbol = `${fromCcy}${toCcy}=X`;
+            const result = await yahooFinance.quote(symbol);
 
-            const data = await res.json();
-
-            if (data['Realtime Currency Exchange Rate'] && data['Realtime Currency Exchange Rate']['5. Exchange Rate']) {
-                const rate = parseFloat(data['Realtime Currency Exchange Rate']['5. Exchange Rate']);
+            if (result && result.regularMarketPrice) {
+                const rate = result.regularMarketPrice;
 
                 // 3. Update Cache
                 await prisma.cachedResponse.upsert({
                     where: { cacheKey },
                     update: { payloadJson: JSON.stringify({ rate }), ts: new Date(), isStale: false },
-                    create: { cacheKey, payloadJson: JSON.stringify({ rate }), ttlSeconds: 3600, source: 'ALPHAVANTAGE' }
+                    create: { cacheKey, payloadJson: JSON.stringify({ rate }), ttlSeconds: 3600, source: 'YAHOO_FINANCE' }
                 });
 
                 return rate;
-            } else if (data['Note']) {
-                console.warn(`[FXService] AlphaVantage rate limit hit for ${fromCcy} -> ${toCcy}.`);
             } else {
-                console.warn(`[FXService] Malformed AlphaVantage response for ${fromCcy} -> ${toCcy}:`, data);
+                console.warn(`[FXService] Yahoo Finance returned invalid rate for ${symbol}`, result);
             }
         } catch (e) {
-            console.error(`[FXService] Error fetching live FX rate ${fromCcy} -> ${toCcy}:`, e);
+            console.error(`[FXService] Error fetching live FX rate ${fromCcy} -> ${toCcy} via Yahoo Finance:`, e);
         }
 
         // 4. Fallback to stale cache if available
@@ -66,7 +59,7 @@ export class FXService {
 
     /**
      * Gets historical FX rates. Currently a stub that returns a flat rate using getFxRate.
-     * In the future, this should fetch AlphaVantage FX_DAILY.
+     * In the future, this should fetch Yahoo Finance historical FX.
      */
     static async getHistoricalRates(curr: string, days: number = 365): Promise<Map<string, number>> {
         const rate = await this.getFxRate(curr, 'USD'); // Fallback to current rate

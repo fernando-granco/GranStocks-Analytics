@@ -17,7 +17,7 @@ export async function bootstrapSuperAdmin() {
 
         if (!existingAdmin) {
             console.log(`🛡️  Creating Superadmin account for ${email}...`);
-            const passwordHash = await bcrypt.hash(password, 10);
+            const passwordHash = await bcrypt.hash(password, 12);
             await prisma.user.create({
                 data: {
                     email,

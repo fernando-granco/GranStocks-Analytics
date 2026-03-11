@@ -24,7 +24,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 return reply.status(409).send({ error: 'User already exists' });
             }
 
-            const passwordHash = await bcrypt.hash(password, 10);
+            const passwordHash = await bcrypt.hash(password, 12);
 
             // Execute registration in a transaction to prevent race conditions on invite limits
             const user = await prisma.$transaction(async (tx) => {
@@ -61,17 +61,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
             });
 
             // Send verification email asynchronously (don't block registration response)
-            if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' || EmailService.isEnabled()) {
+            if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true') {
                 const verificationToken = fastify.jwt.sign({ id: user.id, purpose: 'email-verify' }, { expiresIn: '24h' });
                 EmailService.sendVerificationEmail(user.email, verificationToken).catch(console.error);
             }
 
-            const token = fastify.jwt.sign({ id: user.id });
+            const token = fastify.jwt.sign({ id: user.id }, { expiresIn: '7d' });
             reply.setCookie('token', token, {
                 path: '/',
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
+                signed: true,
                 maxAge: 7 * 24 * 60 * 60 // 7 days
             });
 
@@ -111,12 +112,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 data: { lastLoginAt: new Date() }
             });
 
-            const token = fastify.jwt.sign({ id: user.id });
+            const token = fastify.jwt.sign({ id: user.id }, { expiresIn: '7d' });
             reply.setCookie('token', token, {
                 path: '/',
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
+                signed: true,
                 maxAge: 7 * 24 * 60 * 60
             });
 
@@ -160,7 +162,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 return reply.status(403).send({ error: 'Forbidden: You must use the normal change password flow (/api/user/change-password) requiring current password.' });
             }
 
-            const passwordHash = await bcrypt.hash(newPassword, 10);
+            const passwordHash = await bcrypt.hash(newPassword, 12);
             await prisma.user.update({
                 where: { id: payload.id },
                 data: {
@@ -225,7 +227,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     // -------------------------------------------------------------------------
 
     fastify.post('/request-password-reset', { config: { rateLimit: { max: 3, timeWindow: '5 minutes' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
-        if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true' && !EmailService.isEnabled()) {
+        if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true') {
             return reply.status(501).send({ error: 'Password reset is disabled in this environment.' });
         }
 
@@ -262,7 +264,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
 
     fastify.post('/reset-password', { config: { rateLimit: { max: 5, timeWindow: '5 minutes' } } }, async (request: FastifyRequest, reply: FastifyReply) => {
-        if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true' && !EmailService.isEnabled()) {
+        if (process.env.ENABLE_EMAIL_PASSWORD_RESET !== 'true') {
             return reply.status(501).send({ error: 'Password reset is disabled.' });
         }
 
@@ -280,7 +282,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 return reply.status(400).send({ error: 'This reset link is invalid or has expired. Please request a new one.' });
             }
 
-            const passwordHash = await bcrypt.hash(newPassword, 10);
+            const passwordHash = await bcrypt.hash(newPassword, 12);
             await prisma.user.update({
                 where: { id: resetRecord.userId },
                 data: { passwordHash, mustChangePassword: false }

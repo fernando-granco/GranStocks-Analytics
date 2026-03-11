@@ -3,10 +3,10 @@ import { prisma } from './cache';
 import { MarketData } from './market-data';
 import { IndicatorService, PredictionService, FirmViewService } from './analysis';
 import { PriceHistoryService } from './price-history';
-import { DemoService } from './demo';
 import { ScreenerService } from './screener';
 import { AlertService } from './alerts';
 import { toDateString } from '../utils/date-helpers';
+import { getMarketSession, SessionStatus } from '../utils/market-hours';
 
 export class DailyJobService {
     static async processAsset(asset: any, dateStr: string) {
@@ -164,78 +164,140 @@ export class DailyJobService {
         }, { timezone: activeTz });
         console.log(`Nightly PriceHistory Append Scheduled for 18:30 ${activeTz}`);
 
-        // 15-Minute Periodic Updates
-        let is15MinJobRunning = false;
-        cron.schedule('*/15 * * * *', async () => {
-            if (is15MinJobRunning) {
-                console.log('[Scheduler] 15-minute job skipped (already running).');
-                return;
-            }
-            is15MinJobRunning = true;
+        // ==========================================
+        // US Stocks (1-Minute Cadence)
+        // Active between Pre-Open and Post-Close
+        // ==========================================
+        let isUsJobRunning = false;
+        cron.schedule('* * * * *', async () => {
+            if (isUsJobRunning) return;
+            isUsJobRunning = true;
             try {
-                console.log('[Scheduler] Running 15-minute periodic updates...');
-                const now = new Date();
+                const session = getMarketSession('AAPL', 'STOCK'); // Representative US Symbol
+                if (['PRE_OPEN', 'OPEN', 'POST_CLOSE'].includes(session.status)) {
+                    // Refresh tracked US stocks (implicitly cached by calling getQuote)
+                    const tracked = await prisma.trackedAsset.findMany();
+                    const usTracked = tracked.filter(t => !t.symbol.endsWith('.SA') && !t.symbol.endsWith('.TO'));
 
-                // Determine market hours (US Eastern Time)
-                const options = { timeZone: 'America/New_York', hour12: false };
-                const etHour = parseInt(now.toLocaleTimeString('en-US', { ...options, hour: 'numeric' }));
-                const etMinute = parseInt(now.toLocaleTimeString('en-US', { ...options, minute: 'numeric' }));
-                const day = now.toLocaleDateString('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+                    // Don't await them all individually, let the background cache update handle it
+                    usTracked.forEach(t => MarketData.getQuote(t.symbol, 'STOCK').catch(() => { }));
 
-                const isWeekday = !['Sat', 'Sun'].includes(day);
-                const isMarketOpen = isWeekday && ((etHour === 9 && etMinute >= 30) || (etHour > 9 && etHour < 16));
+                    // Update US Screeners
+                    const dateSplit = toDateString();
+                    await ScreenerService.runScreenerJob('SP500', dateSplit).catch(() => { });
+                    await ScreenerService.runScreenerJob('NASDAQ100', dateSplit).catch(() => { });
 
-                const dateSplit = now.toISOString().split('T')[0];
+                    await prisma.cachedResponse.upsert({
+                        where: { cacheKey: 'scheduler_last_success_us' },
+                        update: { ts: new Date() },
+                        create: { cacheKey: 'scheduler_last_success_us', payloadJson: JSON.stringify({ status: 'OK', session: session.status }), ttlSeconds: 86400 * 30, source: 'SYSTEM' }
+                    });
+                }
+            } catch (e) {
+                console.error('[Scheduler] US 1m Job Failed:', e);
+            } finally {
+                isUsJobRunning = false;
+            }
+        });
 
-                // 1. Always update Crypto Screener
-                console.log('[Scheduler] Refreshing Crypto Screeners (24/7)...');
-                await ScreenerService.runScreenerJob('CRYPTO', dateSplit);
+        // ==========================================
+        // Brazil Stocks (15-Minute Interleaved Cadence)
+        // Brapi (:00, :30), Yahoo (:15, :45)
+        // ==========================================
+        let isBrJobRunning = false;
+        cron.schedule('*/15 * * * *', async () => {
+            if (isBrJobRunning) return;
+            isBrJobRunning = true;
+            try {
+                const session = getMarketSession('PETR4.SA', 'STOCK'); // Representative BR Symbol
+                if (session.status === 'OPEN') {
+                    const dateSplit = toDateString();
+                    const now = new Date();
+                    const minute = now.getMinutes();
+
+                    // The actual alternation is handled gracefully inside getQuote's caching layer,
+                    // but we trigger the refresh here every 15 mins.
+                    const tracked = await prisma.trackedAsset.findMany();
+                    const brTracked = tracked.filter(t => t.symbol.endsWith('.SA'));
+                    brTracked.forEach(t => MarketData.getQuote(t.symbol, 'STOCK').catch(() => { }));
+
+                    await ScreenerService.runScreenerJob('IBOV', dateSplit).catch(() => { });
+
+                    await prisma.cachedResponse.upsert({
+                        where: { cacheKey: 'scheduler_last_success_br' },
+                        update: { ts: new Date() },
+                        create: { cacheKey: 'scheduler_last_success_br', payloadJson: JSON.stringify({ status: 'OK' }), ttlSeconds: 86400 * 30, source: 'SYSTEM' }
+                    });
+                }
+            } catch (e) {
+                console.error('[Scheduler] BR 15m Job Failed:', e);
+            } finally {
+                isBrJobRunning = false;
+            }
+        });
+
+        // ==========================================
+        // Canada Stocks (15-Minute Cadence)
+        // ==========================================
+        let isCaJobRunning = false;
+        cron.schedule('*/15 * * * *', async () => {
+            if (isCaJobRunning) return;
+            isCaJobRunning = true;
+            try {
+                const session = getMarketSession('RY.TO', 'STOCK'); // Representative CA Symbol
+                if (session.status === 'OPEN') {
+                    const dateSplit = toDateString();
+
+                    const tracked = await prisma.trackedAsset.findMany();
+                    const caTracked = tracked.filter(t => t.symbol.endsWith('.TO'));
+                    caTracked.forEach(t => MarketData.getQuote(t.symbol, 'STOCK').catch(() => { }));
+
+                    await ScreenerService.runScreenerJob('TSX60', dateSplit).catch(() => { });
+
+                    await prisma.cachedResponse.upsert({
+                        where: { cacheKey: 'scheduler_last_success_ca' },
+                        update: { ts: new Date() },
+                        create: { cacheKey: 'scheduler_last_success_ca', payloadJson: JSON.stringify({ status: 'OK' }), ttlSeconds: 86400 * 30, source: 'SYSTEM' }
+                    });
+                }
+            } catch (e) {
+                console.error('[Scheduler] CA 15m Job Failed:', e);
+            } finally {
+                isCaJobRunning = false;
+            }
+        });
+
+        // ==========================================
+        // Crypto (15-Minute Screener Refresh)
+        // Quotes themselves stream via WS, this just updates screener DB
+        // ==========================================
+        let isCryptoJobRunning = false;
+        cron.schedule('*/15 * * * *', async () => {
+            if (isCryptoJobRunning) return;
+            isCryptoJobRunning = true;
+            try {
+                const dateSplit = toDateString();
+                await ScreenerService.runScreenerJob('CRYPTO', dateSplit).catch(() => { });
                 await prisma.cachedResponse.upsert({
                     where: { cacheKey: 'scheduler_last_success_crypto' },
                     update: { ts: new Date() },
                     create: { cacheKey: 'scheduler_last_success_crypto', payloadJson: JSON.stringify({ status: 'OK' }), ttlSeconds: 86400 * 30, source: 'SYSTEM' }
                 });
 
-                // 2. Update Equities only if market is open
-                if (isMarketOpen) {
-                    console.log('[Scheduler] Market is OPEN. Refreshing Equity Screeners...');
-                    const equityUniverses: Array<'SP500' | 'NASDAQ100' | 'TSX60' | 'IBOV'> = ['SP500', 'NASDAQ100', 'TSX60', 'IBOV'];
-                    for (const u of equityUniverses) {
-                        try {
-                            await ScreenerService.runScreenerJob(u, dateSplit);
-                        } catch (e) {
-                            console.error(`[Scheduler] Screener refresh failed for ${u}:`, e);
-                        }
-                    }
-                    await prisma.cachedResponse.upsert({
-                        where: { cacheKey: 'scheduler_last_success_equities' },
-                        update: { ts: new Date() },
-                        create: { cacheKey: 'scheduler_last_success_equities', payloadJson: JSON.stringify({ status: 'OK' }), ttlSeconds: 86400 * 30, source: 'SYSTEM' }
-                    });
-                } else {
-                    console.log('[Scheduler] Market is CLOSED. Skipping Equity Screeners...');
-                }
-
-                // Heartbeat
+                // Heartbeat to indicate the overall scheduler loops are alive
                 await prisma.cachedResponse.upsert({
                     where: { cacheKey: 'scheduler_heartbeat' },
                     update: { payloadJson: JSON.stringify({ status: 'OK' }), ts: new Date(), isStale: false },
                     create: { cacheKey: 'scheduler_heartbeat', payloadJson: JSON.stringify({ status: 'OK' }), ttlSeconds: 86400 * 30, source: 'SYSTEM' }
                 });
-                console.log('[Scheduler] 15-minute periodic updates completed.');
-
-            } catch (e: any) {
-                console.error('[Scheduler] 15-minute periodic updates failed:', e);
-                await prisma.cachedResponse.upsert({
-                    where: { cacheKey: 'scheduler_heartbeat' },
-                    update: { payloadJson: JSON.stringify({ status: 'ERROR', error: e.message }), ts: new Date(), isStale: false },
-                    create: { cacheKey: 'scheduler_heartbeat', payloadJson: JSON.stringify({ status: 'ERROR', error: e.message }), ttlSeconds: 86400 * 30, source: 'SYSTEM' }
-                });
+            } catch (e) {
+                console.error('[Scheduler] Crypto 15m Job Failed:', e);
             } finally {
-                is15MinJobRunning = false;
+                isCryptoJobRunning = false;
             }
         });
-        console.log(`15-Minute Periodic Job Scheduled (*/15 * * * *)`);
+
+        console.log(`Market-Aware Schedulers Initialized (US: 1m, CA/BR/Crypto: 15m)`);
 
         // Monthly demo snapshot rebuild disabled (demo is frozen on Jan 1, 2026)
         // cron.schedule('0 0 1 * *', () => {

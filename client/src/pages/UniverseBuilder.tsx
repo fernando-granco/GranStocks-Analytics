@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { usePreferences } from '../context/PreferencesContext';
 import { Filter, Search, Save, Trash2, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
-export default function UniverseBuilder() {
+export default function UniversoBuilder() {
     const { mode } = usePreferences();
 
     const [universes, setUniverses] = useState<any[]>([]);
@@ -11,9 +11,9 @@ export default function UniverseBuilder() {
     // Form state
     const [name, setName] = useState('');
     const [searchQ, setSearchQ] = useState('');
-    const [sector, setSector] = useState('');
-    const [industry, setIndustry] = useState('');
-    const [exchange, setExchange] = useState('');
+    const [sector, setSetor] = useState('');
+    const [industry, setIndústria] = useState('');
+    const [exchange, setBolsa] = useState('');
 
     const [previewResults, setPreviewResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -52,7 +52,7 @@ export default function UniverseBuilder() {
     };
 
     const handleSave = async () => {
-        if (!name) return alert('Please enter a name for this Universe');
+        if (!name) return alert('Digite um nome para este Universo.');
 
         const criteria = { q: searchQ, sector, industry, exchange };
         try {
@@ -68,7 +68,7 @@ export default function UniverseBuilder() {
             if (res.ok) {
                 setName('');
                 fetchUniverses();
-                alert('Universe saved successfully');
+                alert('Universo salvo com sucesso.');
             }
         } catch (e) {
             console.error(e);
@@ -76,7 +76,7 @@ export default function UniverseBuilder() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this universe?')) return;
+        if (!confirm('Excluir este universo?')) return;
         await fetch(`/api/universes/${id}`, { method: 'DELETE' });
         fetchUniverses();
     };
@@ -85,9 +85,9 @@ export default function UniverseBuilder() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center max-w-md mx-auto">
                 <ShieldAlert className="w-16 h-16 text-neutral-600 mb-6" />
-                <h2 className="text-2xl font-bold mb-4">Pro Feature</h2>
+                <h2 className="text-2xl font-bold mb-4">Recurso Pro</h2>
                 <p className="text-neutral-500 mb-8">
-                    The Custom Universe Builder requires Advanced Mode. Toggle the <span className="text-amber-500">Pro</span> switch in the navigation bar to access institutional-grade universe filtering and management.
+                    O Construtor de Universos Personalizados exige o Modo Avançado. Ative o botão <span className="text-amber-500">Pro</span> na barra de navegação para usar filtros e gestão de universos em nível institucional.
                 </p>
             </div>
         );
@@ -97,62 +97,62 @@ export default function UniverseBuilder() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight mb-2">Universe Builder</h1>
-                    <p className="text-neutral-500">Construct custom execution universes for the automated background screener.</p>
+                    <h1 className="text-3xl font-bold tracking-tight mb-2">Construtor de Universos</h1>
+                    <p className="text-neutral-500">Monte universos personalizados para o screener automatizado em segundo plano.</p>
                 </div>
 
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
                     <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <Filter className="text-indigo-400" size={20} /> Filter Criteria
+                        <Filter className="text-indigo-400" size={20} /> Critérios de filtro
                     </h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div>
-                            <label className="block text-xs font-medium text-neutral-400 mb-1">Symbol or Name</label>
+                            <label className="block text-xs font-medium text-neutral-400 mb-1">Símbolo ou nome</label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-2.5 text-neutral-500" size={16} />
                                 <input
                                     type="text"
                                     value={searchQ}
                                     onChange={(e) => setSearchQ(e.target.value)}
-                                    placeholder="e.g. Apple or AAPL"
+                                    placeholder="ex.: Apple ou AAPL"
                                     className="w-full bg-neutral-950 border border-neutral-800 rounded-lg pl-10 pr-4 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-white placeholder-neutral-600"
                                 />
                             </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-neutral-400 mb-1">Exchange</label>
+                            <label className="block text-xs font-medium text-neutral-400 mb-1">Bolsa</label>
                             <select
                                 value={exchange}
-                                onChange={(e) => setExchange(e.target.value)}
+                                onChange={(e) => setBolsa(e.target.value)}
                                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-white"
                             >
-                                <option value="">All Exchanges</option>
+                                <option value="">All Bolsas</option>
                                 {metadataOptions.exchanges.map((ex: string) => <option key={ex} value={ex}>{ex}</option>)}
                             </select>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-neutral-400 mb-1">Sector</label>
+                            <label className="block text-xs font-medium text-neutral-400 mb-1">Setor</label>
                             <select
                                 value={sector}
-                                onChange={(e) => setSector(e.target.value)}
+                                onChange={(e) => setSetor(e.target.value)}
                                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-white"
                             >
-                                <option value="">All Sectors</option>
+                                <option value="">All Setors</option>
                                 {metadataOptions.sectors.map((s: string) => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-neutral-400 mb-1">Industry</label>
+                            <label className="block text-xs font-medium text-neutral-400 mb-1">Indústria</label>
                             <select
                                 value={industry}
-                                onChange={(e) => setIndustry(e.target.value)}
+                                onChange={(e) => setIndústria(e.target.value)}
                                 className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-white"
                             >
-                                <option value="">All Industries</option>
+                                <option value="">Todas as indústrias</option>
                                 {metadataOptions.industries.map((i: string) => <option key={i} value={i}>{i}</option>)}
                             </select>
                         </div>
@@ -164,7 +164,7 @@ export default function UniverseBuilder() {
                             disabled={isSearching}
                             className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
                         >
-                            {isSearching ? 'Scanning...' : 'Preview Matches'}
+                            {isSearching ? 'Buscando...' : 'Visualizar resultados'}
                         </button>
                     </div>
                 </div>
@@ -172,7 +172,7 @@ export default function UniverseBuilder() {
                 {previewResults.length > 0 && (
                     <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
                         <div className="px-6 py-4 border-b border-neutral-800 bg-neutral-900/50 flex items-center justify-between">
-                            <h3 className="font-semibold text-sm">Preview ({previewResults.length} matches)</h3>
+                            <h3 className="font-semibold text-sm">Prévia ({previewResults.length} resultados)</h3>
                         </div>
                         <ul className="divide-y divide-neutral-800 max-h-[300px] overflow-y-auto">
                             {previewResults.map(a => (
@@ -194,16 +194,16 @@ export default function UniverseBuilder() {
             <div className="space-y-6">
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-6">
                     <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <Save className="text-emerald-400" size={20} /> Save Universe
+                        <Save className="text-emerald-400" size={20} /> Salvar Universo
                     </h2>
                     <p className="text-xs text-neutral-500 mb-4">
-                        Save your current filter criteria as a dynamic universe. The backend screener will automatically resolve these components hourly.
+                        Salve os filtros atuais como um universo dinâmico. O screener de backend recalcula esses componentes automaticamente a cada hora.
                     </p>
                     <input
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="e.g. Mega Cap Tech"
+                        placeholder="ex.: Tech de Mega Caps"
                         className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-4 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-white placeholder-neutral-600 mb-4"
                     />
                     <button
@@ -211,16 +211,16 @@ export default function UniverseBuilder() {
                         disabled={previewResults.length === 0}
                         className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
                     >
-                        Save Definition
+                        Salvar definição
                     </button>
                 </div>
 
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
                     <div className="px-6 py-4 border-b border-neutral-800 bg-neutral-900/50">
-                        <h3 className="font-semibold text-sm">Your Saved Universes</h3>
+                        <h3 className="font-semibold text-sm">Seus Universos salvos</h3>
                     </div>
                     {universes.length === 0 ? (
-                        <div className="p-6 text-center text-neutral-500 text-sm">No custom universes saved yet.</div>
+                        <div className="p-6 text-center text-neutral-500 text-sm">Nenhum universo personalizado salvo ainda.</div>
                     ) : (
                         <div className="divide-y divide-neutral-800">
                             {universes.map(u => (

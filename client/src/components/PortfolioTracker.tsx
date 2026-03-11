@@ -53,7 +53,7 @@ export function PortfolioTracker({ onPositionsUpdated, portfolio }: PortfolioTra
                 setPositions(data);
             }
         } catch (e) {
-            console.error('Failed to fetch portfolio', e);
+            console.error('Falha ao buscar carteira', e);
         } finally {
             setLoading(false);
         }
@@ -91,7 +91,7 @@ export function PortfolioTracker({ onPositionsUpdated, portfolio }: PortfolioTra
                 if (onPositionsUpdated) onPositionsUpdated();
             } else {
                 const data = await res.json();
-                setErrorMsg(data.error || 'Failed to add position');
+                setErrorMsg(data.error || 'Falha ao adicionar posição');
             }
         } catch (e) {
             console.error(e);
@@ -100,7 +100,7 @@ export function PortfolioTracker({ onPositionsUpdated, portfolio }: PortfolioTra
     };
 
     const handleDelete = async (id: string) => {
-        if (!window.confirm('Delete this position?')) return;
+        if (!window.confirm('Excluir esta posição?')) return;
         try {
             const res = await fetch(`/api/portfolio/position/${id}`, { method: 'DELETE' });
             if (res.ok) {
@@ -217,7 +217,7 @@ export function PortfolioTracker({ onPositionsUpdated, portfolio }: PortfolioTra
                                 <th className="px-4 py-3">Asset</th>
                                 <th className="px-4 py-3 text-right">Quantity</th>
                                 <th className="px-4 py-3 text-right">Entry Price</th>
-                                <th className="px-4 py-3 text-right">Current Price</th>
+                                <th className="px-4 py-3 text-right">Preço atual</th>
                                 <th className="px-4 py-3 text-right">Market Value ({baseCurrency})</th>
                                 <th className="px-4 py-3 text-right">P&L ({baseCurrency})</th>
                                 <th className="px-4 py-3 text-center">Actions</th>

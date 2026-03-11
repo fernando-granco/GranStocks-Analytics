@@ -1,90 +1,90 @@
 {
     "nav": {
         "dashboard": "Painel",
-        "screener": "Rastreador",
+        "screener": "Screener",
         "watchlists": "Listas",
         "alerts": "Alertas",
         "settings": "Configurações",
         "admin": "Admin",
         "logout": "Sair",
         "brand_demo": "Demo",
-        "portfolio": "Portfólio"
+        "portfolio": "Carteira"
     },
     "landing": {
-        "hero_badge": "Inteligência de Mercado Next-Gen",
-        "hero_title": "Pare de Adivinhar. Comece a Calcular.",
-        "hero_subtitle": "O GranStocks Analytics é uma plataforma de inteligência de trading determinística. Combinamos rastreamento quantitativo em tempo real, métricas de risco de nível institucional e síntese de IA multi-modelo para mantê-lo à frente do mercado.",
-        "btn_create_account": "Criar Conta Grátis",
-        "btn_view_demo": "Ver Demo",
+        "hero_badge": "Inteligência de Mercado de Nova Geração",
+        "hero_title": "Menos achismo. Mais decisão com dados.",
+        "hero_subtitle": "O GranStocks Analytics é uma plataforma de inteligência de mercado determinística. Unimos triagem quantitativa em tempo real, métricas de risco de padrão institucional e síntese de IA com múltiplos modelos para apoiar decisões com mais clareza.",
+        "btn_create_account": "Criar conta grátis",
+        "btn_view_demo": "Ver demo",
         "features": {
             "market_overview": {
-                "title": "Visão Geral do Mercado",
-                "desc": "Um painel unificado exibindo os seus ativos rastreados mais críticos, desempenho diário e consenso de mercado com um piscar de olhos."
+                "title": "Visão geral do mercado",
+                "desc": "Um painel unificado com os ativos mais relevantes que você acompanha, desempenho diário e consenso de mercado em um só lugar."
             },
             "portfolio": {
-                "title": "Rastreamento de Portfólio",
-                "desc": "Monitore as suas participações ativas com cálculos de lucros e perdas em tempo real, custo médio e análise de risco determinística."
+                "title": "Gestão da carteira",
+                "desc": "Acompanhe suas posições com cálculo de lucro e prejuízo em tempo real, custo médio e análise de risco determinística."
             },
             "watchlists": {
-                "title": "Listas de Observação e Universos",
-                "desc": "Organize listas enormes de ativos em Universos para triagem em lote, análise comparativa e rastreamento de setores."
+                "title": "Listas e Universos",
+                "desc": "Organize grandes conjuntos de ativos em Universos para triagem em lote, análise comparativa e monitoramento por setor."
             },
             "screener": {
-                "title": "Rastreador em Fundo",
-                "desc": "Sem listas hardcoded. O nosso executor contínuo processa Universos inteiros em segundo plano para encontrar os melhores candidatos com base na matemática."
+                "title": "Screener em segundo plano",
+                "desc": "Sem listas fixas. Nosso processamento em background analisa Universos inteiros para encontrar os melhores candidatos com base em dados e critérios quantitativos."
             },
             "ai": {
-                "title": "Narrativas de IA e Visão da Empresa",
-                "desc": "Gere narrativas Técnicas, Fundamentais e de Risco estritamente a partir de dados determinísticos. Traga Sua Própria Chave (BYOK) para OpenAI, Anthropic, DeepSeek e mais."
+                "title": "Narrativas com IA e Firm View",
+                "desc": "Gere narrativas Técnicas, Fundamentais e de Risco com base exclusivamente em dados determinísticos. Use BYOK (Bring Your Own Key) para OpenAI, Anthropic, DeepSeek e outros provedores."
             },
             "admin": {
                 "title": "Painel Admin Zero-Trust",
-                "desc": "Gerenciamento de usuários de nível empresarial, sistemas de códigos de convite e Controle de Acesso Baseado em Função protegidos por middleware Fastify."
+                "desc": "Gestão completa de usuários em nível corporativo, códigos de convite e controle de acesso por função protegidos por middleware Fastify."
             }
         },
-        "footer": "GranStocks Analytics. Construído para pesquisadores de mercado avançados."
+        "footer": "GranStocks Analytics. Feito para quem leva pesquisa de mercado a sério."
     },
     "dashboard": {
-        "welcome": "Bem-vindo",
-        "title": "Painel de Visão Geral",
-        "market_overview": "Visão Geral do Mercado",
-        "run_daily_job": "Executar Job Diário",
-        "no_assets": "Nenhum ativo rastreado",
-        "no_assets_desc": "Vá para as Suas Listas para adicionar símbolos ao seu portfólio.",
-        "custom_universes": "Os Seus Universos Personalizados",
+        "welcome": "Bem-vindo(a)",
+        "title": "Painel geral",
+        "market_overview": "Visão geral do mercado",
+        "run_daily_job": "Executar rotina diária",
+        "no_assets": "Você ainda não acompanha nenhum ativo",
+        "no_assets_desc": "Vá para Listas para adicionar ativos à sua carteira.",
+        "custom_universes": "Seus universos personalizados",
         "portfolio": {
-            "title": "Valor Total do Portfólio",
-            "all_time": "Todo o Período",
-            "top_gainer": "Maior Alta",
-            "top_loser": "Maior Baixa",
-            "add": "Adicionar Posição",
+            "title": "Valor total da carteira",
+            "all_time": "Todo o período",
+            "top_gainer": "Maior alta",
+            "top_loser": "Maior baixa",
+            "add": "Adicionar posição",
             "symbol": "Símbolo",
             "type": "Tipo",
-            "entry": "Preço de Entrada",
+            "entry": "Preço de entrada",
             "qty": "Quantidade",
-            "submit": "Adicionar Posição",
+            "submit": "Adicionar posição",
             "cancel": "Cancelar",
             "headers": {
                 "symbol": "Ativo",
                 "price": "Mercado",
                 "entry": "Entrada",
                 "value": "Valor",
-                "pnl": "Lucro/Prejuízo Aberto",
+                "pnl": "P/L em aberto",
                 "bias": "Consenso",
                 "actions": "Ações"
             }
         },
         "card": {
-            "bias_bullish": "Viés de Alta",
-            "bias_bearish": "Viés de Baixa",
-            "last_price": "Último Preço"
+            "bias_bullish": "Viés de alta",
+            "bias_bearish": "Viés de baixa",
+            "last_price": "Último preço"
         }
     },
     "screener": {
-        "title": "Melhores Candidatos",
-        "subtitle": "Rastreador de 6 Meses",
-        "desc": "Agregando sinais determinísticos (Retorno, Volatilidade, Drawdown, Estratégia de Tendência).",
-        "force_run": "Forçar Execução",
+        "title": "Melhores candidatos",
+        "subtitle": "Screener (6 meses)",
+        "desc": "Agregando sinais determinísticos (Retorno, Volatilidade, Drawdown e Estratégia de Tendência).",
+        "force_run": "Executar agora",
         "tabs": {
             "sp500": "S&P 500",
             "nasdaq100": "NASDAQ 100",
@@ -98,32 +98,59 @@
             "actions": "Ações"
         },
         "run_state": {
-            "running": "Job em execução. Métricas ao vivo sendo calculadas...",
-            "running_desc": "Jobs de rastreamento geralmente resolvem-se dentro de 14-45 segundos dependendo das latências de câmbio."
+            "running": "A rotina está em execução. As métricas estão sendo calculadas em tempo real...",
+            "running_desc": "O processamento normalmente é concluído entre 14 e 45 segundos, dependendo da latência das bolsas."
         }
     },
     "settings": {
-        "title": "Configurações da Conta",
-        "profile": "Detalhes do Perfil",
-        "api_keys": "Chaves API Externas",
-        "llm_provider": "Provedor LLM Ativo",
-        "save": "Salvar Alterações"
+        "title": "Configurações da conta",
+        "profile": "Dados do perfil",
+        "api_keys": "Chaves de API externas",
+        "llm_provider": "Provedor de LLM ativo",
+        "save": "Salvar alterações",
+        "tabs": {
+            "account": "Conta e exibição",
+            "analysis": "Pesos da análise",
+            "providers": "Provedores de LLM"
+        },
+        "display": {
+            "title": "Preferências de exibição",
+            "hide_market": "Ocultar visão geral do mercado quando estiver vazia",
+            "hide_universes": "Ocultar universos personalizados quando estiverem vazios",
+            "hide_portfolio": "Ocultar carteira quando estiver vazia"
+        },
+        "providers": {
+            "title": "Provedores de LLM",
+            "desc": "Configure aqui seus modelos com Bring Your Own Key (BYOK)."
+        },
+        "analysis": {
+            "title": "Pesos da análise",
+            "desc": "Defina os pesos determinísticos aplicados na pontuação técnica."
+        },
+        "prompts": {
+            "title": "Modelos de prompt",
+            "desc": "Personalize os prompts usados na geração das narrativas de IA.",
+            "force_action_labels": "Forçar rótulos de ação",
+            "force_action_labels_desc": "Retorna somente os tokens [BUY], [SELL] ou [HOLD].",
+            "disclaimer_title": "ATENÇÃO:",
+            "disclaimer_body": "Os rótulos de ação são simulações e não constituem recomendação financeira."
+        }
     },
     "demo": {
-        "warning": "MODO DEMO: Snapshot estático bloqueado em 1 de Janeiro de 2026. Os dados estão completamente offline.",
-        "back": "Voltar ao Painel Demo",
-        "preview": "Pré-visualização do Rastreador"
+        "warning": "MODO DEMO: snapshot estático travado em 1º de janeiro de 2026. Os dados estão totalmente offline.",
+        "back": "Voltar para o painel demo",
+        "preview": "Prévia do screener"
     },
     "search": {
-        "placeholder": "Pesquise por símbolos, ferramentas ou ativos...",
+        "placeholder": "Pesquise símbolos, ferramentas ou ativos...",
         "no_results": "Nenhum ativo encontrado para",
-        "btn_track": "Seguir",
+        "btn_track": "Acompanhar",
         "btn_buy": "Comprar",
         "btn_save": "Salvar",
         "add_to_universe": "Adicionar ao Universo",
-        "no_universes": "Sem universos criados.",
+        "no_universes": "Nenhum Universo personalizado.",
         "qty": "Quantidade",
-        "entry_price": "Preço de Entrada ($)",
+        "entry_price": "Preço de entrada ($)",
         "confirm": "Confirmar",
         "close": "para fechar"
     }

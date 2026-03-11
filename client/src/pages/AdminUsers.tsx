@@ -54,8 +54,8 @@ export default function AdminUsers() {
         if (!confirm('Force password reset on next login?')) return;
         try {
             const res = await fetch(`/api/admin/users/${id}/force-reset`, { method: 'POST' });
-            if (!res.ok) throw new Error('Reset failed');
-            setActionMsg('Success: Forced Password Reset');
+            if (!res.ok) throw new Error('Falha ao redefinir');
+            setActionMsg('Sucesso: redefinição de senha forçada');
             fetchUsers();
             fetchLogs();
             setTimeout(() => setActionMsg(''), 3000);
@@ -158,7 +158,7 @@ export default function AdminUsers() {
                                     <tr key={u.id} className="border-b border-neutral-800/50 hover:bg-neutral-800/20 transition-colors">
                                         <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
                                             {u.email}
-                                            {u.mustChangePassword && <span title="Must change password"><AlertTriangle size={14} className="text-amber-500" /></span>}
+                                            {u.mustChangePassword && <span title="Obrigatório alterar senha"><AlertTriangle size={14} className="text-amber-500" /></span>}
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 text-xs font-bold rounded flex items-center gap-1 w-max ${u.role === 'SUPERADMIN' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' :
@@ -176,7 +176,7 @@ export default function AdminUsers() {
                                         </td>
                                         <td className="px-6 py-4 text-xs font-mono">
                                             <div>J: {new Date(u.createdAt).toISOString().split('T')[0]}</div>
-                                            <div className="text-neutral-500">L: {u.lastLoginAt ? new Date(u.lastLoginAt).toISOString().split('T')[0] : 'Never'}</div>
+                                            <div className="text-neutral-500">L: {u.lastLoginAt ? new Date(u.lastLoginAt).toISOString().split('T')[0] : 'Nunca'}</div>
                                         </td>
                                         <td className="px-6 py-4 flex gap-2 justify-end items-center">
                                             {u.role === 'SUPERADMIN' ? (
@@ -203,7 +203,7 @@ export default function AdminUsers() {
                                                             <UserCheck size={16} />
                                                         </button>
                                                     )}
-                                                    <button onClick={() => handleForceReset(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 rounded transition-colors" title="Force Password Reset">
+                                                    <button onClick={() => handleForceReset(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-amber-400 rounded transition-colors" title="Forçar redefinição de senha">
                                                         <KeyRound size={16} />
                                                     </button>
                                                     <button onClick={() => handleDelete(u.id)} className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-rose-500 rounded transition-colors" title="Delete User">
